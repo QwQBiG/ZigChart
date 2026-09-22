@@ -2,15 +2,15 @@
 
 [English](feature-map.md) | [简体中文](feature-map.zh-CN.md)
 
-本文定义 ZigChart 已实现的图表边界及后续扩展工作，以 2026-09-21 核查的官方 Lightweight Charts 5.2 文档作为功能分类参考。对照的是能力类别，不代表 API 兼容、行为完全一致或经过测量的性能相当。ZigChart 通过 Zig → WebAssembly → TypeScript → Canvas 2D 独立实现图表。
+本文列出 ZigChart 已实现的功能与后续扩展，以 2026-09-21 核查的官方 Lightweight Charts 5.2 文档作为分类参考。ZigChart 采用 Zig → WebAssembly → TypeScript → Canvas 2D 实现，具体行为和接口见下文。
 
-Lightweight Charts 是图表库，不是完整的 TradingView 网站或 TradingHero 工作台。它不提供行情数据或内置指标，这些能力由应用提供。TradingView 的[产品对比](https://www.tradingview.com/charting-library-docs/latest/product-comparison/)区分了它与 Advanced Charts、托管组件。本项目没有引入外部图表实现或品牌素材。
+Lightweight Charts 提供图表绘制与交互，行情数据、指标和工作台由宿主应用提供。TradingView 的[产品对比](https://www.tradingview.com/charting-library-docs/latest/product-comparison/)说明了 Lightweight Charts、Advanced Charts 和托管组件各自的用途。
 
 ## 图表库层面的能力
 
-**已实现**表示在所述范围内可用；**部分实现**表示已有可用子集；**待实现**表示尚未具备，并不承诺交付日期。
+**已实现**表示在所述范围内可用；**部分实现**表示已有可用子集；**待实现**标记后续扩展内容。
 
-| 类别 | 状态 | ZigChart 范围及剩余边界 |
+| 类别 | 状态 | 当前行为与扩展内容 |
 | --- | --- | --- |
 | [序列类型](https://tradingview.github.io/lightweight-charts/docs/series-types) | 部分实现 | 蜡烛、空心蜡烛、OHLC 柱、基于收盘价的折线、面积与基准线，以及独立可选图窗内的成交量柱。通用直方图数据及自定义序列注册待实现。 |
 | 序列外观 | 已实现 | 独立蜡烛主体／边框／影线、涨跌色、线宽和直线／阶梯路径、面积颜色、明暗主题及网格／末价线可见性。这是已记录的设置子集，并非上游全部选项。 |
@@ -46,9 +46,9 @@ Lightweight Charts 是图表库，不是完整的 TradingView 网站或 TradingH
 - 十字线吸附保留在当前图窗内：折线／面积／基准线使用收盘价，成交量使用成交量，RSI／MACD 使用所选 K 线处最近的有效指标值。预热 `NaN` 值不可用且不参与吸附。隐藏模式保留读数，未来留白不虚构时间戳。十字线样式独立于图表设置和指标。
 - 时间轴拖动在 4 个 CSS 像素后生效，以绘图区右端为锚点，向右移动放大。滚轮统一像素／行／页单位并锚定指针。所有手势使用同一核心视口。
 - 图表设置编辑外观、序列及坐标轴草稿。恢复默认保留序列类型并重置这些草稿，不重置指标或十字线偏好。应用提交，取消／关闭／Esc 丢弃。
-- RSI 默认使用 14 次变化，以首个完整集合的平均涨幅／跌幅初始化，再使用 Wilder 平滑；平坦初值取 50。副图固定为 0–100，参考线仅影响显示。MACD 默认周期为 12／26／9，各 EMA 使用完整周期 SMA 初值；柱状图为 `MACD - signal`，副图范围包含零。这些是本地初始化契约，不承诺与其他平台逐值相同。
+- RSI 默认使用 14 次变化，以首个完整集合的平均涨幅／跌幅初始化，再使用 Wilder 平滑；平坦初值取 50。副图固定为 0–100，参考线仅影响显示。MACD 默认周期为 12／26／9，各 EMA 使用完整周期 SMA 初值；柱状图为 `MACD - signal`，副图范围包含零。
 - BB 使用完整周期的收盘 SMA 与总体标准差（除数为 `N`），默认 20 根、倍数 2。未预热值保持 NaN，三条轨道共用价格轴、参与范围／对数可用性判断，保留图窗成员及最大化。支持一项独立样式 BB，其他数据源／中轨类型、偏移及独立指标周期待实现。
 - 所有启用图窗共用横坐标映射和帧调度。添加成交量、RSI 或 MACD 会清除最大化以显示新副图，保留顺序、权重和时间；仅改参数／样式及主图叠加指标保留最大化。相邻分隔线拖动在 4 个 CSS 像素后生效，上／下方向键每次移动 8 个 CSS 像素，Home／End 移至允许边界。双击恢复该相邻组合的默认比例，保留合计大小和其他图窗。空间允许时每个可见图窗至少 64 个 CSS 像素，高度不足时均分。
 - 版本 4 的 `zigchart.indicators` 保留有效版本 1／2／3 设置及额外均线，补充关闭的 BB 默认值；版本 1／2 不含额外均线，版本 1 还会补充关闭的 RSI／MACD。额外均线具有稳定槽位标识、独立设置及复制后的核心输出，共用价格坐标轴。移除额外均线删除该实例，移除内置指标保留其设置。版本 3 的 `zigchart.layout` 按图窗标识保存 `paneWeights` 及经过校验的 `paneOrder`，版本 1／2 以默认顺序迁移。最大化为临时状态；移除正在最大化的指标会恢复所有剩余图窗。
 
-原有帧行、新增且复制的图窗／指标／坐标轴缓冲区、数值边界及所有权规则见[架构](architecture.zh-CN.md)，可复现检查见[验证流程](verification.zh-CN.md)，公式来源见[参考资料](references.zh-CN.md)。功能存在本身不证明浏览器覆盖或性能结果。
+帧行、复制后的图窗／指标／坐标轴缓冲区、数值边界及所有权规则见[架构](architecture.zh-CN.md)，测试方法见[验证流程](verification.zh-CN.md)，公式来源见[参考资料](references.zh-CN.md)。

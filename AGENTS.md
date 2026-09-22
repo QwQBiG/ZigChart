@@ -11,6 +11,7 @@
 - Source code, identifiers, and code comments use English; localized message values may use their target language. Commit and pull request descriptions provide matching English and Simplified Chinese summaries, validation results, and limitations. Issues may use either language. Maintain documentation in English and Simplified Chinese together: keep English filenames and add `.zh-CN.md` counterparts with reciprocal language links and localized internal documentation links. Both versions must retain the same facts, examples, source links, and limitations. Keep this file and the pull request template bilingual in one file; preserve upstream legal notices verbatim in their original language.
 - Maintain English and Simplified Chinese interface messages together, including Canvas text, dynamic states, accessibility labels, and page metadata. Keep localization in the browser host. Language changes must preserve core/data/interaction state and UTC semantics; unavailable preference storage must not prevent switching.
 - Do not add generated-tool attribution to public content.
+- Describe current behavior, design reasons and measured results in plain language. State each fact once near its subject. Keep operational constraints precise; omit unrelated feature wish lists, discarded approaches and conversation history from delivery descriptions.
 - Keep Zig platform independent: data validation, indicators, viewport and geometry belong in `core/`. Browser networking, input, scheduling, and Canvas drawing belong in `web/`.
 - Exchange numeric batches through a versioned Wasm ABI; never call browser APIs from Zig.
 - Timestamps are UTC epoch milliseconds. Prices and volume are integer units; instrument metadata defines their scale. Reject unsafe or non-finite values.
@@ -73,6 +74,7 @@
 - 源码、标识符和代码注释使用英文；本地化消息值可以使用其目标语言。提交和拉取请求说明应包含相互对应的英文与简体中文摘要、验证结果及限制。议题可使用任一语言。文档同时维护英文和简体中文：保留英文文件名，增加 `.zh-CN.md` 对应版本，提供双向语言链接，并将内部文档链接指向对应语言。两个版本须保持相同的事实、示例、来源链接和限制说明。本文件和拉取请求模板在同一文件内提供双语；上游法律声明保留原文，不改写或翻译替代。
 - 同步维护英文和简体中文界面消息，包括 Canvas 文字、动态状态、无障碍标签和页面元数据。本地化放在浏览器宿主内。切换语言必须保留核心／数据／交互状态和 UTC 语义；偏好存储不可用时也应能切换。
 - 不在公开内容中添加生成工具署名。
+- 使用直接、具体的语言说明当前行为、设计理由和实测结果，每项事实在对应位置写一次。准确保留使用约束；交付说明不夹带无关功能清单、已弃用方案和聊天过程。
 - 保持 Zig 与平台无关：数据校验、指标、视口和几何逻辑放在 `core/`；浏览器网络、输入、调度和 Canvas 绘制放在 `web/`。
 - 通过带版本号的 Wasm ABI 交换数值批次；不得从 Zig 调用浏览器 API。
 - 时间戳使用 UTC 纪元毫秒。价格和成交量使用整数单位，由交易品种元数据定义缩放比例。拒绝不安全整数及非有限值。

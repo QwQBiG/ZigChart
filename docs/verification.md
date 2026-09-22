@@ -2,7 +2,7 @@
 
 [English](verification.md) | [简体中文](verification.zh-CN.md)
 
-This document defines reproducible checks. It is not a record of completed runs. Report actual commands, environment, results, and unverified scope with each change; do not infer browser correctness from compilation or unit tests.
+This document describes how to verify changes. Record the commands, environment, results and coverage in the pull request. Check browser interactions directly when changing the interface.
 
 ## Automated checks
 
@@ -49,7 +49,7 @@ For pan scale regressions, compare the same retained candle before and after mov
 
 Price-axis checks should cover the initial top-relative anchor, unchanged time and volume, finite span/endpoints, invalid inputs, no-op limits, and reset without horizontal movement. In the browser, verify upward/downward drag after 4 vertical CSS pixels, click-only input, ignored volume/time axes, cancellation, double-click reset, Auto/Fixed feedback after panning, and the button's Up/Down keys in both languages. Manual scales must survive resize and market updates but are not saved across reloads. Compare mature EMA revisions against a full recomputation for short and long periods; check scale-8/32/1e9 formatting and rejected scales, plus throwing subscription cleanup during Pause, period switches, and disposal.
 
-The CI workflow runs installation, compiler setup, architecture and documentation checks, tests, and a production build on Windows, Linux, and macOS. Each job records Node's `process.platform` and `process.arch`; results apply to the runner architecture actually used, so an arm64 macOS run does not establish Intel Mac coverage. It contains no deployment or release step. A local run does not establish that the remote workflow passed, and compiler download availability does not establish tested execution on any platform or architecture.
+CI runs installation, compiler setup, architecture and documentation checks, tests, and a production build on Windows, Linux, and macOS. Each job records Node's `process.platform` and `process.arch`. Link the completed run when reporting results and name the tested architecture. Record browser and device checks separately.
 
 Correction tests compare sparse historical batches against a full rebuild across all indicator seeds and mature recursive state. Reject missing targets, duplicates, malformed rows and ordinary historical upserts without partial mutation. Check correction after prepend, cache invalidation, fixed ranges, drawing anchors and subscription cancellation/error paths. Provider ordering and real-feed correction races require integration tests with that provider.
 
@@ -92,4 +92,4 @@ The browser's **Frame** metric is a rolling mean of up to 90 redraws on that dev
 
 For browser performance work, record hardware, OS, browser version, viewport, device-pixel ratio, retained and visible bar counts, drawing count, selected period, update frequency, build mode, warm-up, sample count, and the precise measured boundary. Separate initial load, cold/cached period aggregation, history prepend, latest-bar updates, pointer-only redraws, drawing edits, zoom, and pan. Use browser performance traces when attributing time to layout, rendering, garbage collection, or dropped frames.
 
-Compare identical fixtures and workloads before claiming improvement over another build or product. Keep raw measurements in ignored `measurements/` or outside the repository, and include the meaningful environment and result in the review. No performance threshold or competitor superiority claim is implied by this checklist.
+Compare builds or products using the same fixtures and workloads. Keep raw measurements in ignored `measurements/` or outside the repository, and include the environment and measured results in the review.
