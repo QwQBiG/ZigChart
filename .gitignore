@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.tools/
+.zig-cache/
+zig-out/
+web/public/core.wasm
+.env
+.env.*
+!.env.example
+data/private/
+coverage/
+test-results/
+playwright-report/
+measurements/
+.work/
