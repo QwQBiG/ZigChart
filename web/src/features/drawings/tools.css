@@ -1,0 +1,8 @@
+.line-tools{position:relative;width:36px;height:36px;flex-shrink:0;color:var(--muted)}
+.line-tools>svg{position:absolute;left:5px;top:5px;pointer-events:none}
+.line-tools .custom-select{width:36px;height:36px}
+.line-tools .select-trigger{height:36px;min-height:36px;border:0;background:transparent;padding:0}
+.line-tools .select-value{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.line-tools .select-trigger::after{position:absolute;right:1px;bottom:1px;width:4px;height:4px;margin:0}
+.line-tools.active{color:var(--accent);background:var(--raised);border-radius:4px}
+.line-tools:has(button:disabled)>svg{opacity:.4}

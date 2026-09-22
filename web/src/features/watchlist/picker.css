@@ -1,0 +1,13 @@
+.watchlist-picker{width:600px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 48px);padding:0 16px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);box-shadow:0 18px 60px #0003;overflow:auto;transition:none;animation:none}
+.watchlist-picker::backdrop{background:rgb(0 0 0 / .16)}
+.watchlist-picker .market-section-header{padding:16px 0 10px}
+.symbol-picker-search{display:block;width:100%;box-sizing:border-box;padding:11px 12px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:4px;font:inherit}
+.symbol-picker-list{border-top:1px solid var(--line);margin-top:14px}
+.symbol-picker-row{display:grid;grid-template-columns:minmax(0,1fr) auto 34px;align-items:center;gap:10px;padding:13px 8px;border-bottom:1px solid var(--line)}
+.symbol-picker-row.selected{background:var(--raised);box-shadow:inset 2px 0 var(--accent)}
+.symbol-picker-identity{display:flex;flex-direction:column;gap:4px;min-width:0;overflow-wrap:anywhere}
+.symbol-picker-identity>span{color:var(--muted);font-size:12px}.symbol-picker-identity>small{color:var(--muted);font-size:10px}
+.symbol-picker-row>button{white-space:nowrap}.symbol-picker-row>button[data-action="watch"]{padding:6px 2px;font-size:20px}.symbol-picker-row>button[aria-pressed="true"]{color:var(--accent)}
+.symbol-picker-row>button:disabled{opacity:.45;cursor:default}
+.symbol-picker-empty{padding:18px 8px}
+@media(max-width:480px){.watchlist-picker{padding-inline:10px}.symbol-picker-row{gap:6px;padding-inline:5px}.symbol-picker-row>button[data-action="show"]{padding-inline:6px;font-size:11px}}

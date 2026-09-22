@@ -1,0 +1,11 @@
+.indicator-controls{display:flex;align-items:center;flex-wrap:wrap;gap:3px 14px;min-width:0}
+.study-legend{display:flex;align-items:center;gap:3px;min-height:24px;font-size:11px;line-height:1.2;color:var(--muted)}
+.study-name{display:inline-flex;align-items:center;gap:6px;margin-right:3px;font-variant-numeric:tabular-nums}
+.study-name::before{content:"";width:10px;height:2px;background:var(--study-color)}
+.study-action{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;padding:3px;border:0;border-radius:3px;background:transparent;color:var(--muted);cursor:pointer;opacity:.6}
+.study-action svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5}
+.study-legend:hover .study-action,.study-legend:focus-within .study-action{opacity:1}
+.study-action:hover,.study-action:focus-visible{background:var(--raised);color:var(--text)}
+.volume-legend{position:absolute;left:12px;z-index:1;padding:0 4px;background:var(--chart-bg)}
+.pane-study-legend{position:absolute;left:12px;z-index:1;padding:0 4px;background:var(--chart-bg);overflow:hidden;box-sizing:border-box}
+.volume-legend[hidden],.pane-study-legend[hidden],.indicator-controls[hidden],.study-legend[hidden]{display:none}

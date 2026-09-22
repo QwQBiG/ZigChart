@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.21.1
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Check module boundaries
+        run: npm run check:architecture
+      - name: Check bilingual documentation
+        run: npm run check:docs
+        env:
+          DOCS_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+      - name: Install verified Zig compiler
+        run: npm run setup:zig
+      - name: Test core and Wasm bridge
+        run: npm test
+      - name: Type check and build production bundle
+        run: npm run build

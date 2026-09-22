@@ -1,0 +1,15 @@
+.drawing-dialog:has(.text-controls:not([hidden])){width:520px}
+.drawing-dialog[open]:has(.text-controls:not([hidden])){display:flex;flex-direction:column;overflow:hidden}
+.drawing-dialog:has(.text-controls:not([hidden])) .drawing-card{min-height:0;overflow:auto}
+.drawing-dialog:has(.text-controls:not([hidden])) .drawing-dialog-footer{flex-shrink:0;background:var(--surface)}
+.text-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;border-top:1px solid var(--line);margin-top:18px;padding-top:12px}
+.text-controls[hidden]{display:none}
+.text-controls>h3,.text-controls>p,.text-controls>.text-content-field{grid-column:1/-1;margin:0}
+.text-controls label{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.text-controls>.text-content-field{display:flex;flex-direction:column;align-items:stretch;gap:6px}
+.text-controls input[type=number],.text-controls textarea{padding:6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--text);font:inherit}
+.text-controls input[type=number]{width:80px}
+.text-controls textarea{width:100%;resize:vertical;min-height:90px;max-height:260px;line-height:1.4;box-sizing:border-box}
+.text-controls input[aria-invalid="true"],.text-controls textarea[aria-invalid="true"]{border-color:var(--down)}
+.text-controls .text-error{color:var(--down);font-size:11px}
+@media(max-width:480px){.text-controls{grid-template-columns:1fr}}

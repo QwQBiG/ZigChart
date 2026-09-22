@@ -1,0 +1,3 @@
+#chart.price-axis-hover{cursor:ns-resize}
+.price-scale-auto{min-width:30px;height:24px;padding:0 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--muted);font-size:10px;flex-shrink:0}
+.price-scale-auto:hover,.price-scale-auto.active{background:var(--raised);color:var(--accent)}
