@@ -27,6 +27,8 @@ npm run build
 
 原生测试显式使用 LLVM（`-fllvm`），同时保留 Debug 安全检查。Zig 0.15.x 原本在 x86_64 Linux Debug 构建中默认使用自实现后端，在 Windows 上默认使用 LLVM；固定后端可避免平台默认值不同。背景见 [Zig 后端发布说明](https://ziglang.org/download/0.15.1/release-notes.html#x86-Backend)。Wasm 生产构建仍采用 `ReleaseFast`；这项选择不改变图表逻辑，也不关闭原生运行时检查。
 
+macOS CI 通过任务的 `DEVELOPER_DIR` 固定 Xcode 26.3，并记录所选 Xcode／SDK 版本。Zig 0.15.2 与 Xcode 26.4+ SDK 存在已知的原生链接器兼容问题，参见 [上游兼容性报告](https://github.com/ghostty-org/ghostty/issues/11991)。本地原生测试也需选择相同的兼容 SDK，无须更改全局 `xcode-select` 设置。升级 Zig 时应重新评估这项固定配置。Wasm 仍采用 freestanding 目标，不链接 macOS SDK。
+
 `npm run check:architecture` 解析 TypeScript 模块引用，拒绝数据层依赖 `data/` 外部、可复用模块依赖 `app/`（`main.ts` 启动入口除外），以及显式相对运行时循环。夹具测试覆盖允许的仅类型循环、禁止的归属／运行时依赖，以及 CLI 成功／失败退出码。计算生成的动态导入和未来路径别名需另行审查；该检查不能替代 TypeScript 或浏览器验证。
 
 `npm run check:docs` 检查八组英文／中文文档、双向语言链接、LF 换行，以及本地链接目标。将 `DOCS_BASE_REF` 设置为提交 SHA 时，还会检查该提交与 `HEAD` 之间的文档改动是否同时包含两个语言版本。CI 在可用时提供这一比较基准。该检查验证结构与配对改动，不判断翻译准确性或语义是否一致；维护者必须将两个版本一起审阅。

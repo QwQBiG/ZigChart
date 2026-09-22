@@ -40,6 +40,8 @@ npm run dev
 
 在 Windows 上使用 `$env:ZIG_BIN = 'C:\path\to\zig.exe'`。本地工具二进制与生成的 WebAssembly 已由 Git 忽略。开发服务器需要 `web/public/core.wasm`；修改 Zig 源码后请重新运行 `npm run build:wasm`。
 
+在 macOS 上，原生测试需要已安装的兼容 Xcode SDK。固定的 Zig 0.15.2 使用 Xcode 26.3：`DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer npm test`（请按安装位置调整路径）。CI 仅为当前任务选择此 SDK，不更改系统全局 Xcode 选择。参见 [SDK 兼容性与验证范围](docs/verification.zh-CN.md#自动化检查)。
+
 如需检查生产构建，先运行 `npm run build`，再运行 `npm run preview`。构建产物位于 `dist/`。CI 在 Windows、Linux 和 macOS 上构建并测试，记录执行环境的平台和架构，不执行发布或部署。
 
 ## 使用图表

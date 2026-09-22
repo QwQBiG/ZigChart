@@ -40,6 +40,8 @@ Open the local URL printed by Vite. `setup:zig` downloads the official compiler 
 
 On Windows, use `$env:ZIG_BIN = 'C:\path\to\zig.exe'`. Local tool binaries and generated WebAssembly are ignored by Git. The dev server needs `web/public/core.wasm`; rerun `npm run build:wasm` after changing Zig sources.
 
+On macOS, native tests require an installed compatible Xcode SDK. With the pinned Zig 0.15.2, use Xcode 26.3: `DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer npm test` (adjust the installed path). CI selects this SDK for its job without changing the system-wide Xcode selection. See [SDK compatibility and validation scope](docs/verification.md#automated-checks).
+
 To inspect the production build, run `npm run preview` after `npm run build`. The build output is in `dist/`. CI builds and tests on Windows, Linux, and macOS, recording the runner platform and architecture; it does not publish or deploy.
 
 ## Explore the chart
