@@ -1,0 +1,27 @@
+.range-toolbar{display:flex;align-items:center;gap:10px;min-height:32px;flex-shrink:0;border-top:1px solid var(--line);padding:2px 8px;color:var(--muted);font-size:11px}
+.range-buttons{display:flex;gap:2px;overflow-x:auto;scrollbar-width:thin;flex-shrink:1}
+.range-buttons button{border:0;background:transparent;color:var(--text);padding:5px 7px;white-space:nowrap;border-radius:3px;font:inherit;cursor:pointer}
+.range-buttons button:hover,.range-buttons button[aria-pressed="true"]{background:var(--raised);color:var(--accent)}
+.range-buttons button:disabled{opacity:.5;cursor:default}
+.range-status{min-width:0;font-size:10px}
+.range-date-open{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:30px;height:26px;border:0;border-left:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+.range-date-open:hover,.range-date-open[aria-expanded="true"],.range-date-open[aria-pressed="true"]{background:var(--raised);color:var(--accent)}
+.range-date-open:disabled{opacity:.5;cursor:default}
+.range-date-dialog{width:390px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);box-shadow:0 18px 65px #0003;overflow:auto}
+.range-date-dialog::backdrop{background:rgb(0 0 0 / .12)}
+.range-date-dialog header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line)}
+.range-date-dialog h2{margin:0;font-size:18px}
+.range-date-dialog header button{background:transparent;border:0;color:var(--muted);font-size:25px;cursor:pointer}
+.range-date-dialog form{padding:20px;display:flex;flex-direction:column;gap:18px}
+.range-date-modes{display:flex;gap:5px}
+.range-date-dialog button{font-family:inherit;transition:none}
+.range-date-modes button,.range-date-dialog footer button{padding:8px 12px;border:1px solid var(--line);border-radius:4px;background:transparent;color:var(--text);cursor:pointer}
+.range-date-modes button[aria-pressed="true"]{color:var(--accent);background:var(--raised);border-color:var(--accent)}
+.range-date-dialog label{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px}
+.range-date-dialog label[hidden]{display:none}
+.range-date-dialog input{width:160px;box-sizing:border-box;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--text);padding:8px;font:inherit}
+.range-date-dialog input[aria-invalid="true"]{border-color:var(--down)}
+.range-date-hint,.range-date-error{margin:0;color:var(--muted);font-size:12px;line-height:1.6}
+.range-date-error{color:var(--text)}
+.range-date-dialog footer{display:flex;justify-content:flex-end;gap:8px}
+.range-date-dialog footer .range-date-go{background:var(--accent);border-color:var(--accent);color:#fff}

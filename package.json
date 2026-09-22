@@ -1,0 +1,27 @@
+{
+  "name": "zigchart",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": { "node": ">=22.21.1 <23", "npm": ">=10 <11" },
+  "packageManager": "npm@10.9.4",
+  "scripts": {
+    "setup:zig": "node scripts/setup-zig.mjs",
+    "build:wasm": "node scripts/zig.mjs build",
+    "test:core": "node scripts/zig.mjs test",
+    "test:web": "node --experimental-transform-types --test tests/*.test.mjs",
+    "test": "npm run test:core && npm run build:wasm && npm run test:web",
+    "typecheck": "tsc --noEmit",
+    "check:docs": "node scripts/check-docs.mjs",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "build": "npm run build:wasm && npm run typecheck && vite build",
+    "dev": "vite --host 127.0.0.1",
+    "preview": "vite preview --host 127.0.0.1",
+    "benchmark": "node --experimental-transform-types scripts/benchmark.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "8.3.0"
+  }
+}

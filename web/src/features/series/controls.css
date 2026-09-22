@@ -1,0 +1,3 @@
+.series-type-control{display:flex;align-items:center;flex-shrink:0}
+.series-type-control .select-trigger{min-width:112px;max-width:160px}
+@media(max-width:600px){.series-type-control .select-trigger{min-width:88px;max-width:130px}}
