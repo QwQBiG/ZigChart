@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,6 +25,8 @@ jobs:
         with:
           node-version: 22.21.1
           cache: npm
+      - name: Report validation environment
+        run: node -p "JSON.stringify([process.platform, process.arch, process.version, require('node:os').release()])"
       - name: Install locked dependencies
         run: npm ci
       - name: Check module boundaries

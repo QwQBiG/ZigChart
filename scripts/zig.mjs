@@ -15,7 +15,8 @@ try {
     mkdirSync('web/public', { recursive: true });
     args = ['build-exe', 'core/wasm.zig', '-target', 'wasm32-freestanding', '-fno-entry', '-rdynamic', '-fstrip', '-O', 'ReleaseFast', '-femit-bin=web/public/core.wasm', ...common];
   } else if (command === 'test') {
-    args = ['test', 'core/engine.zig', ...common];
+    // Keep native Debug code generation consistent across supported hosts.
+    args = ['test', 'core/engine.zig', '-fllvm', ...common];
   } else {
     throw new Error('Usage: node scripts/zig.mjs build|test');
   }

@@ -40,7 +40,7 @@ Open the local URL printed by Vite. `setup:zig` downloads the official compiler 
 
 On Windows, use `$env:ZIG_BIN = 'C:\path\to\zig.exe'`. Local tool binaries and generated WebAssembly are ignored by Git. The dev server needs `web/public/core.wasm`; rerun `npm run build:wasm` after changing Zig sources.
 
-To inspect the production build, run `npm run preview` after `npm run build`. The build output is in `dist/`. CI builds and tests on Windows and Linux; it does not publish or deploy.
+To inspect the production build, run `npm run preview` after `npm run build`. The build output is in `dist/`. CI builds and tests on Windows, Linux, and macOS, recording the runner platform and architecture; it does not publish or deploy.
 
 ## Explore the chart
 

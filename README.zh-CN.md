@@ -40,7 +40,7 @@ npm run dev
 
 在 Windows 上使用 `$env:ZIG_BIN = 'C:\path\to\zig.exe'`。本地工具二进制与生成的 WebAssembly 已由 Git 忽略。开发服务器需要 `web/public/core.wasm`；修改 Zig 源码后请重新运行 `npm run build:wasm`。
 
-如需检查生产构建，先运行 `npm run build`，再运行 `npm run preview`。构建产物位于 `dist/`。CI 在 Windows 和 Linux 上构建并测试，不执行发布或部署。
+如需检查生产构建，先运行 `npm run build`，再运行 `npm run preview`。构建产物位于 `dist/`。CI 在 Windows、Linux 和 macOS 上构建并测试，记录执行环境的平台和架构，不执行发布或部署。
 
 ## 使用图表
 
