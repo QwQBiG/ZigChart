@@ -12,7 +12,11 @@ Read [AGENTS.md](AGENTS.md), the [architecture](docs/architecture.md), and the [
 4. Run `npm run check:architecture`, `npm test` and `npm run build`. Run `npm run check:docs` for documentation changes. After UI changes, use the [browser verification checklist](docs/verification.md) and inspect browser errors.
 5. Review the complete net diff, including new files, before requesting review. State what ran, its result, and what remains unverified.
 
-Use English in source code, identifiers, and code comments. Issues may use English or Simplified Chinese; commit and pull request descriptions must include both languages. Maintain documentation in English and Simplified Chinese: the English file keeps its original name, and its counterpart uses `.zh-CN.md`. Each pair must provide language links, matching facts, examples, source links, and limitations. Link to the matching language for local documentation. Keep the shared `AGENTS.md` and pull request template bilingual in one file; preserve upstream legal notices verbatim. All text files use UTF-8 and LF, including scripts; `.editorconfig` and `.gitattributes` define the policy for Windows and Unix checkouts. Keep comments about present behavior and maintenance constraints.
+Use English in source code, identifiers, and code comments; localized message values may use their target language. Commit messages, pull request titles and bodies, issues and their templates, review comments, and GitHub release text use English. Keep the pull request template in English.
+
+Maintain documentation in English and Simplified Chinese: the English file keeps its original name, and its counterpart uses `.zh-CN.md`. Each pair must provide language links, matching facts, examples, source links, and limitations. Link to the matching language for local documentation. Keep `AGENTS.md` bilingual in one file and preserve upstream legal notices verbatim. Maintain English and Simplified Chinese interface messages together.
+
+All text files use UTF-8 and LF, including scripts; `.editorconfig` and `.gitattributes` define the policy for Windows and Unix checkouts. Keep comments about present behavior and maintenance constraints.
 
 `check:docs` checks document pairs, reciprocal language links, and local links. With `DOCS_BASE_REF` set to the comparison commit, it also checks that both members of a changed pair were updated; CI supplies this reference when available. These structural checks cannot prove semantic equivalence. Review the translations for matching meaning before requesting review.
 

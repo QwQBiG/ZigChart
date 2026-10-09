@@ -2,7 +2,7 @@
 
 [English](references.md) | [简体中文](references.zh-CN.md)
 
-本文记录依据官方仓库和文档作出的设计取舍，资料核查时间为 2026-09-20 和 2026-09-21。除注明版本的链接外，仓库链接指向检查时的默认分支。
+本文记录依据官方仓库和文档作出的设计取舍，资料核查时间为 2026-09-20、2026-09-21、2026-09-27、2026-10-05 和 2026-10-08。除注明版本的链接外，仓库链接指向检查时的默认分支。
 
 ## 开源实现
 
@@ -33,13 +33,25 @@ Lightweight Charts 文档提供了[可调整尺寸的图窗](https://tradingview
 
 官方[图表截图 API](https://tradingview.github.io/lightweight-charts/docs/api/interfaces/IChartApi#takescreenshot)返回 Canvas，默认排除十字线。[v5.2.0 chart-widget.ts](https://github.com/tradingview/lightweight-charts/blob/v5.2.0/src/gui/chart-widget.ts) 先提交待处理重绘，再将图窗、分隔条和坐标轴位图合成为独立 Canvas。ZigChart 将复制后的帧及已提交绘图绘制到有界图片，增加本地化图表元数据并排除编辑反馈。
 
+当前完整盘点固定为 [Lightweight Charts v5.2.1](https://github.com/tradingview/lightweight-charts/releases/tag/v5.2.1)，提交为 `b2ce010e4ad59f6556c9ed60e2b2b30feccdd2d1`。[覆盖清单](upstream-coverage.zh-CN.md)将库本体、教程分类及全部官方插件／指标示例对应到 ZigChart 范围和工作包。
+
+该提交中的 [ISeriesApi](https://github.com/tradingview/lightweight-charts/blob/b2ce010e4ad59f6556c9ed60e2b2b30feccdd2d1/src/api/iseries-api.ts)提供独立价位线的创建／移除，[user-price-lines 示例](https://github.com/tradingview/lightweight-charts/blob/b2ce010e4ad59f6556c9ed60e2b2b30feccdd2d1/plugin-examples/src/plugins/user-price-lines/user-price-lines.ts)展示参考线与轴标签编辑。ZigChart 独立实现有界价位线文档及 Zig 批量投影，不改变用户选择的十字线模式。价位不改变自动范围；精确输入、品种隔离和 PNG 行为遵循自己的[架构契约](architecture.zh-CN.md#自定义价位线)。
+
+固定提交的[无障碍示例](https://github.com/tradingview/lightweight-charts/blob/b2ce010e4ad59f6556c9ed60e2b2b30feccdd2d1/plugin-examples/src/plugins/accessibility/accessibility.ts)及[键盘教程](https://github.com/tradingview/lightweight-charts/blob/b2ce010e4ad59f6556c9ed60e2b2b30feccdd2d1/website/tutorials/a11y/keyboard.mdx)提供图表焦点、逐点导航和播报的参考。ZigChart 在共享 Zig 视口上独立实现显式查看模式、UTC 锚点及获焦点时的礼貌级播报，不复制插件源码或快捷键映射。[查看契约](architecture.zh-CN.md#键盘逐根查看)区分普通平移快捷键，并将 DOM 语义检查与真实屏幕阅读器验证分开。
+
 ## 指标公式
+
+固定 Lightweight Charts 提交中的[移动平均计算](https://github.com/tradingview/lightweight-charts/blob/b2ce010e4ad59f6556c9ed60e2b2b30feccdd2d1/indicator-examples/src/indicators/moving-average/moving-average-calculation.ts)接受来源字段，其可选 EMA 平滑以首个有效值初始化；ZigChart 保留自己的完整周期 SMA 初值。[平均价格](https://github.com/tradingview/lightweight-charts/blob/b2ce010e4ad59f6556c9ed60e2b2b30feccdd2d1/indicator-examples/src/indicators/average-price/average-price-calculation.ts)、[中间价格](https://github.com/tradingview/lightweight-charts/blob/b2ce010e4ad59f6556c9ed60e2b2b30feccdd2d1/indicator-examples/src/indicators/median-price/median-price-calculation.ts)和[加权收盘](https://github.com/tradingview/lightweight-charts/blob/b2ce010e4ad59f6556c9ed60e2b2b30feccdd2d1/indicator-examples/src/indicators/weighted-close/weighted-close-calculation.ts)示例分别计算 `(O + H + L + C) / 4`、`(H + L) / 2` 和 `(H + L + weight * C) / (2 + weight)`，默认权重为 2。这些仅用于公式参考，未引入其实现。
+
+TradingView 官方[图表信息](https://www.tradingview.com/pine-script-docs/concepts/chart-information/)列出 `hl2`、`hlc3`、`ohlc4` 和 `hlcc4`，包括典型价格 `(H + L + C) / 3`。ZigChart 的内置及六条额外 MA／EMA 可独立选择这四种组合价格及四个 OHLC 字段。核心保留原始单位的小数，并在初值、追加、末根修订、历史修正及前插中使用相同来源。来源选择不改变 RSI／MACD／BB 的收盘输入及唐奇安通道的最高／最低输入。完整来源和兼容契约见[架构说明](architecture.zh-CN.md#数据与指标状态)。
 
 TradingView 官方 [RSI](https://www.tradingview.com/support/solutions/43000502338-relative-strength-index-rsi/) 和 [MACD](https://www.tradingview.com/support/solutions/43000502344-moving-average-convergence-divergence-macd-indicator/) 说明提供公式参考：RSI 比较平滑后的上涨和下跌幅度；MACD 为快均线减慢均线，包含信号均线，以及等于 MACD 减信号线的柱状图。ZigChart 为 MACD 的两条均线和信号线使用 EMA。
 
 在 ZigChart 中，RSI 默认使用 14 次相邻收盘变化，以首个完整周期的平均上涨／下跌幅度作为初值，再使用 Wilder 平滑；完全持平的初值输出 50。MACD 默认为 12/26/9，各条 EMA 都以完整周期的 SMA 作为初值，包括信号 EMA 最先可用的 MACD 值。柱状图为 `MACD - signal`。预热期不可用值保持 NaN。RSI 图窗固定为 0–100，MACD 自动范围包含零。
 
 TradingView 官方[布林带说明](https://www.tradingview.com/support/solutions/43000501840-bollinger-bands-bb/)记录了均线中轨与标准差上下轨，默认数据源为收盘价、长度 20、倍数 2。ZigChart 采用收盘 SMA、除以 `N` 的总体方差，完整窗口之前为 NaN。该除数由 ZigChart 选定，来源页面未作规定。图表支持一项 BB，按图表周期的收盘价计算，使用 SMA 中轨和零偏移。
+
+TradingView 官方[唐奇安通道说明](https://www.tradingview.com/support/solutions/43000502253-donchian-channels-dc/)及 [TA-Lib 规格](https://ta-lib.org/functions/donchian.html)将上轨定义为周期内最高价、下轨定义为最低价、中轨定义为两者中点，默认长度为 20。[TA-Lib 实现](https://github.com/TA-Lib/ta-lib/blob/main/src/ta_func/ta_DONCHIAN.c)及 TradingView 的[执行模型](https://www.tradingview.com/pine-script-docs/language/execution-model/)确认完整窗口包含当前 K 线，并需要前 `N - 1` 根。ZigChart 在完整窗口形成前导出 NaN，仅支持一项按图表周期计算、线条／填充样式独立且无偏移的主图叠加指标。
 
 ## 产品参考
 
