@@ -1,6 +1,8 @@
 import type { Locale } from '../../ui/i18n';
-import { analysisCatalog, indicatorTitle } from './catalog';
+import { indicatorTitle } from './catalog';
 import { studyKind, studySettings, updateStudy, type StudyId, type IndicatorState, type AverageSettings } from './model';
+import { INDICATOR_SOURCES } from '../../chart/indicator-source';
+import { sourceOptionLabel } from './sources';
 
 interface SettingsOptions {
   id: StudyId;
@@ -12,14 +14,16 @@ interface SettingsOptions {
 
 const labels = {
   en: {
-    back: 'Back to indicators', period: 'Period', color: 'Line color', width: 'Line width',
+    back: 'Back to indicators', period: 'Period', source: 'Price source', color: 'Line color', width: 'Line width',
     upColor: 'Rising-bar color', downColor: 'Falling-bar color', opacity: 'Opacity',
     fastPeriod: 'Fast EMA period', slowPeriod: 'Slow EMA period', signalPeriod: 'Signal EMA period',
     lineColor: 'MACD line', signalColor: 'Signal line', positiveColor: 'Positive histogram', negativeColor: 'Negative histogram',
     upper: 'Upper reference level', lower: 'Lower reference level', showLevels: 'Show reference levels',
-    multiplier: 'Standard deviation multiplier', basisColor: 'Basis line', upperColor: 'Upper band', lowerColor: 'Lower band',
+    multiplier: 'Standard deviation multiplier', basisColor: 'Basis line', middleColor: 'Middle line',
+    upperColor: 'Upper band', lowerColor: 'Lower band',
     fillColor: 'Band fill color', fillOpacity: 'Band fill opacity', showFill: 'Show band fill',
     bbInvalid: 'Use a whole-number period from 1 to 500, a multiplier from 0.1 to 10, line width from 1 to 4, and fill opacity from 0% to 100%.',
+    dcInvalid: 'Use a whole-number period from 1 to 500, line width from 1 to 4, and fill opacity from 0% to 100%.',
     levelsHint: 'Reference levels change the display only; they do not affect RSI calculation.',
     apply: 'Apply settings', hint: 'Changes apply only to this indicator.',
     invalid: 'Use a whole-number period from 1 to 500, line width from 1 to 4, and opacity from 10% to 100%.',
@@ -28,14 +32,16 @@ const labels = {
     saved: 'Settings applied.',
   },
   'zh-CN': {
-    back: '返回指标列表', period: '周期', color: '线条颜色', width: '线宽',
+    back: '返回指标列表', period: '周期', source: '价格来源', color: '线条颜色', width: '线宽',
     upColor: '上涨柱颜色', downColor: '下跌柱颜色', opacity: '不透明度',
     fastPeriod: '快 EMA 周期', slowPeriod: '慢 EMA 周期', signalPeriod: '信号 EMA 周期',
     lineColor: 'MACD 主线', signalColor: '信号线', positiveColor: '正值柱颜色', negativeColor: '负值柱颜色',
     upper: '上参考线', lower: '下参考线', showLevels: '显示参考线',
-    multiplier: '标准差倍数', basisColor: '中轨颜色', upperColor: '上轨颜色', lowerColor: '下轨颜色',
+    multiplier: '标准差倍数', basisColor: '中轨颜色', middleColor: '中轨颜色',
+    upperColor: '上轨颜色', lowerColor: '下轨颜色',
     fillColor: '带状填充颜色', fillOpacity: '带状填充不透明度', showFill: '显示带状填充',
     bbInvalid: '周期须为 1 至 500 的整数，标准差倍数为 0.1 至 10，线宽为 1 至 4，填充不透明度为 0% 至 100%。',
+    dcInvalid: '周期须为 1 至 500 的整数，线宽为 1 至 4，填充不透明度为 0% 至 100%。',
     levelsHint: '参考线仅影响显示，不改变 RSI 的计算结果。',
     apply: '应用设置', hint: '修改仅应用于当前指标。',
     invalid: '周期须为 1 至 500 的整数，线宽为 1 至 4，不透明度为 10% 至 100%。',
@@ -58,15 +64,23 @@ export function createSettingsForm(options: SettingsOptions): HTMLFormElement {
   back.type = 'button'; back.className = 'indicator-settings-back'; back.textContent = `‹ ${text.back}`;
   back.addEventListener('click', options.onBack);
   const title = document.createElement('h3');
-  const name = analysisCatalog.find(entry => entry.id === kind)!.title[locale];
   title.textContent = indicatorTitle(id, state, locale);
   const hint = document.createElement('p'); hint.className = 'analysis-hint'; hint.textContent = text.hint;
   const fields = document.createElement('div'); fields.className = 'indicator-settings-fields';
-  const inputs = new Map<string, HTMLInputElement>();
+  const inputs = new Map<string, HTMLInputElement | HTMLSelectElement>();
   const status = document.createElement('p'); status.className = 'indicator-settings-status'; status.setAttribute('role', 'status');
   type SettingField = 'period' | 'color' | 'width' | 'upColor' | 'downColor' | 'opacity' | 'fastPeriod' | 'slowPeriod'
     | 'signalPeriod' | 'lineColor' | 'signalColor' | 'positiveColor' | 'negativeColor' | 'upper' | 'lower' | 'showLevels'
-    | 'multiplier' | 'basisColor' | 'upperColor' | 'lowerColor' | 'fillColor' | 'fillOpacity' | 'showFill';
+    | 'multiplier' | 'basisColor' | 'middleColor' | 'upperColor' | 'lowerColor' | 'fillColor' | 'fillOpacity' | 'showFill';
+  function draftValues() {
+    return Object.fromEntries([...inputs].map(([key, input]) => [key,
+      input.type === 'checkbox' ? (input as HTMLInputElement).checked : input.type === 'number' || input.type === 'range'
+        ? (input.value.trim() ? Number(input.value) : NaN) : input.value]));
+  }
+  function updateTitle() {
+    const draft = updateStudy(options.getState(), id, draftValues());
+    if (draft) title.textContent = indicatorTitle(id, draft, locale);
+  }
   function field(key: SettingField, type: string, value: string | number | boolean, min?: number, max?: number, step?: number) {
     const label = document.createElement('label');
     const caption = document.createElement('span'); caption.textContent = text[key];
@@ -87,11 +101,7 @@ export function createSettingsForm(options: SettingsOptions): HTMLFormElement {
     input.addEventListener('input', () => {
       status.textContent = ''; status.classList.remove('is-error');
       if (type === 'range') showValue();
-      if (id === 'bb' && (key === 'period' || key === 'multiplier')) {
-        const draft = updateStudy(state, id, { period: Number(inputs.get('period')?.value || NaN),
-          multiplier: Number(inputs.get('multiplier')?.value || NaN) });
-        if (draft) title.textContent = indicatorTitle(id, draft, locale);
-      } else if (key === 'period' && input.validity.valid && input.value) title.textContent = `${name} ${input.value}`;
+      if (key === 'period' || key === 'multiplier' || key.endsWith('Period')) updateTitle();
     });
     label.append(caption, control); fields.append(label); inputs.set(key, input);
   }
@@ -114,8 +124,27 @@ export function createSettingsForm(options: SettingsOptions): HTMLFormElement {
     field('width', 'range', settings.width, 1, 4, 1);
     field('showFill', 'checkbox', settings.showFill);
     field('fillOpacity', 'range', settings.fillOpacity, 0, 1, .01);
+  } else if (id === 'dc') {
+    const settings = state.dc;
+    field('period', 'number', settings.period, 1, 500, 1);
+    for (const key of ['upperColor', 'lowerColor', 'middleColor', 'fillColor'] as const) field(key, 'color', settings[key]);
+    field('width', 'range', settings.width, 1, 4, 1);
+    field('showFill', 'checkbox', settings.showFill);
+    field('fillOpacity', 'range', settings.fillOpacity, 0, 1, .01);
   } else {
     field('period', 'number', selected.period, 1, 500, 1);
+    if (kind === 'ma' || kind === 'ema') {
+      const label = document.createElement('label'), caption = document.createElement('span'); caption.textContent = text.source;
+      const control = document.createElement('span'); control.className = 'indicator-setting-control indicator-source-control';
+      const select = document.createElement('select'); select.name = 'source'; select.id = `indicator-${id}-source`;
+      select.dataset.indicatorSetting = 'source'; select.setAttribute('aria-label', text.source);
+      for (const source of INDICATOR_SOURCES) {
+        const option = document.createElement('option'); option.value = source; option.textContent = sourceOptionLabel(source, locale); select.append(option);
+      }
+      select.value = selected.source;
+      select.addEventListener('change', () => { status.textContent = ''; status.classList.remove('is-error'); updateTitle(); });
+      control.append(select); label.append(caption, control); fields.append(label); inputs.set('source', select);
+    }
     field('color', 'color', selected.color);
     field('width', 'range', selected.width, 1, 4, 1);
     if (id === 'rsi') {
@@ -134,15 +163,14 @@ export function createSettingsForm(options: SettingsOptions): HTMLFormElement {
   form.addEventListener('submit', event => {
     event.preventDefault();
     const latest = options.getState();
-    const values = Object.fromEntries([...inputs].map(([key, input]) => [key,
-      input.type === 'checkbox' ? input.checked : input.type === 'number' || input.type === 'range'
-        ? (input.value.trim() ? Number(input.value) : NaN) : input.value]));
+    const values = draftValues();
     const next = updateStudy(latest, id, values);
     if (!next) {
       const invalidOrder = id === 'macd' && Number(values.fastPeriod) >= Number(values.slowPeriod);
       const invalidLevels = id === 'rsi' && (!Number.isFinite(values.lower) || !Number.isFinite(values.upper)
         || Number(values.lower) < 0 || Number(values.upper) > 100 || Number(values.lower) >= Number(values.upper));
-      status.textContent = invalidOrder ? text.macdOrder : invalidLevels ? text.rsiLevels : id === 'bb' ? text.bbInvalid : text.invalid;
+      status.textContent = invalidOrder ? text.macdOrder : invalidLevels ? text.rsiLevels
+        : id === 'bb' ? text.bbInvalid : id === 'dc' ? text.dcInvalid : text.invalid;
       status.classList.add('is-error');
       inputs.get(invalidLevels ? 'lower' : id === 'macd' ? 'fastPeriod' : 'period')?.focus();
       return;

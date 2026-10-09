@@ -7,6 +7,9 @@ import './panel.css';
 interface AnalysisLibraryOptions {
   getState(): IndicatorState;
   onChange(next: IndicatorState): void;
+  onOpen?(): void;
+  onClose?(): void;
+  refreshControls?(): void;
 }
 
 const messages = {
@@ -18,7 +21,7 @@ const messages = {
     trend: 'Trend', volatility: 'Volatility', volume: 'Volume', oscillators: 'Oscillators',
     price: 'Price chart', pane: 'Separate pane', add: 'Add', remove: 'Remove', settings: 'Settings',
     addAnother: 'Add another', additional: 'Additional averages', limit: 'Six additional averages maximum',
-    noResults: 'No matching indicators', tryAgain: 'Try MA, EMA, BB, Volume, RSI or MACD. You can search in either language.',
+    noResults: 'No matching indicators', tryAgain: 'Try MA, EMA, BB, DC, Volume, RSI or MACD. You can search in either language.',
     strategyTitle: 'Strategies', scriptTitle: 'My scripts', planned: 'Planned',
     strategyDescription: 'This is the home for future strategy definitions and results. Strategy execution and backtesting are not available yet.',
     scriptDescription: 'This is the home for future personal indicators and Python scripts. A script editor and execution runtime are not available yet.',
@@ -31,7 +34,7 @@ const messages = {
     trend: '趋势', volatility: '波动率', volume: '成交量', oscillators: '振荡指标',
     price: '主图叠加', pane: '独立副图', add: '添加', remove: '移除', settings: '设置',
     addAnother: '再添加一条', additional: '额外均线实例', limit: '最多添加六条额外均线',
-    noResults: '未找到匹配指标', tryAgain: '试试 MA、EMA、BB、成交量、RSI 或 MACD，中英文都可以搜索。',
+    noResults: '未找到匹配指标', tryAgain: '试试 MA、EMA、BB、DC、成交量、RSI 或 MACD，中英文都可以搜索。',
     strategyTitle: '策略', scriptTitle: '我的脚本', planned: '规划中',
     strategyDescription: '这里将统一管理策略定义与结果。目前尚未提供策略执行和回测功能。',
     scriptDescription: '这里将统一管理个人指标与 Python 脚本。目前尚未提供脚本编辑器和运行环境。',
@@ -75,6 +78,14 @@ export function createAnalysisLibrary(options: AnalysisLibraryOptions) {
   let setting: StudyId | null = null;
   let membership = '';
   let locale: Locale = getLocale();
+  let restoreFocus: HTMLElement | null = null;
+  let disposed = false;
+  const compactNavigation = window.matchMedia('(max-width: 600px)');
+  const updateNavigationOrientation = () => {
+    navigation.setAttribute('aria-orientation', compactNavigation.matches ? 'horizontal' : 'vertical');
+  };
+  updateNavigationOrientation();
+  compactNavigation.addEventListener('change', updateNavigationOrientation);
   const tabs = new Map<AnalysisCategory, HTMLButtonElement>();
   const actions = new Map<IndicatorId, HTMLButtonElement>();
   const settingsButtons = new Map<IndicatorId, HTMLButtonElement>();
@@ -92,8 +103,10 @@ export function createAnalysisLibrary(options: AnalysisLibraryOptions) {
   }
   navigation.addEventListener('keydown', event => {
     const current = analysisCategories.indexOf(category);
-    const next = event.key === 'ArrowDown' ? (current + 1) % 3 : event.key === 'ArrowUp' ? (current + 2) % 3
-      : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : -1;
+    const count = analysisCategories.length;
+    const next = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? (current + 1) % count
+      : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? (current + count - 1) % count
+        : event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : -1;
     if (next < 0) return;
     event.preventDefault();
     category = analysisCategories[next];
@@ -131,6 +144,7 @@ export function createAnalysisLibrary(options: AnalysisLibraryOptions) {
   function renderResults() {
     const text = messages[locale];
     results.replaceChildren();
+    options.refreshControls?.();
     actions.clear();
     settingsButtons.clear();
     names.clear();
@@ -142,6 +156,7 @@ export function createAnalysisLibrary(options: AnalysisLibraryOptions) {
         id, locale, getState: options.getState, onChange: options.onChange,
         onBack: () => { setting = null; render(); if (!isExtraAverage(id)) actions.get(id)?.focus(); },
       }));
+      options.refreshControls?.();
       return;
     }
     if (category !== 'indicators') {
@@ -174,7 +189,9 @@ export function createAnalysisLibrary(options: AnalysisLibraryOptions) {
       const name = element('h4', 'analysis-item-name', entry.title[locale]);
       names.set(entry.id, name);
       const description = element('p', 'analysis-item-description', entry.description[locale]);
-      details.append(name, description, element('span', 'analysis-placement', text[entry.placement]));
+      const heading = element('div', 'analysis-item-heading');
+      heading.append(name, element('span', 'analysis-placement', text[entry.placement]));
+      details.append(heading, description);
       item.append(details);
       const id = entry.id;
       const controls = element('div', 'analysis-item-actions');
@@ -191,7 +208,7 @@ export function createAnalysisLibrary(options: AnalysisLibraryOptions) {
       actions.set(id, action); settingsButtons.set(id, settingsButton);
       controls.append(action, settingsButton);
       if (id === 'ma' || id === 'ema') {
-        const another = element('button', 'analysis-action'); another.type = 'button';
+        const another = element('button', 'analysis-action analysis-additional-action'); another.type = 'button';
         another.addEventListener('click', () => { options.onChange(addAverage(options.getState(), id)); renderResults(); });
         additionalButtons.set(id, another); controls.append(another);
       }
@@ -241,25 +258,68 @@ export function createAnalysisLibrary(options: AnalysisLibraryOptions) {
   }
 
   render();
+  function show() {
+    if (dialog.open) return;
+    restoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialog.showModal();
+    options.onOpen?.();
+  }
+  dialog.addEventListener('close', () => {
+    if (disposed || dialog.open) return;
+    setting = null;
+    render();
+    options.onClose?.();
+    if (restoreFocus?.isConnected) restoreFocus.focus({ preventScroll: true });
+  });
   function openSettings(id: StudyId) {
-    category = 'indicators'; setting = id; render();
-    if (!dialog.open) dialog.showModal();
+    if (!dialog.open || setting !== id) {
+      category = 'indicators'; setting = id; render();
+    }
+    show();
     results.querySelector('input')?.focus();
   }
   return {
     open() {
+      if (dialog.open) return;
       setting = null;
       render();
-      if (!dialog.open) dialog.showModal();
+      show();
       if (category === 'indicators') search.focus();
       else tabs.get(category)?.focus();
     },
     openSettings,
+    close() { if (dialog.open) dialog.close(); },
+    isOpen() { return dialog.open; },
     refresh() {
-      if (locale !== getLocale()) render();
+      if (setting && isExtraAverage(setting) && !options.getState().averages.some(item => item.id === setting)) {
+        setting = null;
+        render();
+        return;
+      }
+      if (locale !== getLocale()) {
+        const fields = () => Array.from(results.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-indicator-setting]'));
+        const draft = setting ? fields().map(field => ({ name: field.name, value: field.value,
+          checked: field instanceof HTMLInputElement && field.checked })) : [];
+        const active = document.activeElement as HTMLElement | null;
+        const focused = active?.closest('.indicator-setting-control')?.querySelector<HTMLInputElement | HTMLSelectElement>('[name]')?.name;
+        render();
+        for (const field of fields()) {
+          const saved = draft.find(item => item.name === field.name); if (!saved) continue;
+          field.value = saved.value;
+          if (field instanceof HTMLInputElement) field.checked = saved.checked;
+        }
+        for (const field of fields()) field.dispatchEvent(new Event(field.tagName === 'SELECT' ? 'change' : 'input'));
+        options.refreshControls?.();
+        const field = fields().find(item => item.name === focused);
+        (field?.hidden ? field.closest('.custom-select')?.querySelector<HTMLButtonElement>('button') : field)?.focus({ preventScroll: true });
+      }
       else if (!setting && membership !== options.getState().averages.map(item => item.id).join(',')) renderResults();
       else updateActions();
     },
-    dispose() { dialog.close(); dialog.remove(); },
+    dispose() {
+      disposed = true;
+      compactNavigation.removeEventListener('change', updateNavigationOrientation);
+      dialog.close(); dialog.remove();
+    },
   };
 }

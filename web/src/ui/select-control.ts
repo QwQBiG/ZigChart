@@ -10,6 +10,7 @@ interface SelectControl {
   signature: string;
   active: number;
   originalHidden: boolean;
+  events: AbortController;
 }
 
 let sequence = 0;
@@ -214,7 +215,9 @@ export function setupSelectControls(root: Document = document): { refresh(): voi
     popup.setAttribute('role', 'listbox');
     popup.hidden = true;
     button.setAttribute('aria-controls', popup.id);
-    const control: SelectControl = { select, wrapper, button, value, popup, options: [], signature: '', active: -1, originalHidden: select.hidden };
+    const events = new AbortController();
+    const signal = events.signal;
+    const control: SelectControl = { select, wrapper, button, value, popup, options: [], signature: '', active: -1, originalHidden: select.hidden, events };
     select.before(wrapper);
     wrapper.append(select, button);
     select.hidden = true;
@@ -238,7 +241,21 @@ export function setupSelectControls(root: Document = document): { refresh(): voi
     update(control);
   }
 
+  function disposeControl(control: SelectControl): void {
+    if (opened === control) close();
+    control.events.abort();
+    control.select.hidden = control.originalHidden;
+    control.wrapper.replaceWith(control.select);
+    control.popup.remove();
+  }
+
   function refresh(): void {
+    for (let index = controls.length - 1; index >= 0; index--) {
+      if (!controls[index].select.isConnected) {
+        disposeControl(controls[index]);
+        controls.splice(index, 1);
+      }
+    }
     for (const select of root.querySelectorAll<HTMLSelectElement>('select')) {
       if (!select.multiple && select.size <= 1 && !controls.some(control => control.select === select)) create(select);
     }
@@ -256,10 +273,7 @@ export function setupSelectControls(root: Document = document): { refresh(): voi
   return { refresh, dispose() {
     close();
     events.abort();
-    for (const { select, wrapper, popup, originalHidden } of controls) {
-      select.hidden = originalHidden;
-      wrapper.replaceWith(select);
-      popup.remove();
-    }
+    controls.forEach(disposeControl);
+    controls.length = 0;
   } };
 }

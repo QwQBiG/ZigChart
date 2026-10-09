@@ -1,6 +1,7 @@
 import type { Bar, BarInfo, Frame, PaneId, PaneInfo, PriceScaleMode } from './types';
 import { DRAWING_KINDS as drawingKinds } from './drawing-types.ts';
 import { encodeFibonacci, validFibonacciGeometry, type FibonacciGeometryOptions } from './fibonacci.ts';
+import { indicatorSourceCode, type IndicatorSource } from './indicator-source.ts';
 
 type CoreExports = WebAssembly.Exports & {
   memory: WebAssembly.Memory;
@@ -14,14 +15,20 @@ type CoreExports = WebAssembly.Exports & {
   resize_plot(width: number): void;
   set_pane_split(ratio: number): void;
   configure_indicators(maPeriod: number, emaPeriod: number, mask: number): number;
+  configure_indicators_v2(maPeriod: number, emaPeriod: number, mask: number, maSource: number, emaSource: number): number;
   configure_oscillators(rsi: number, fast: number, slow: number, signal: number, mask: number): number;
   overlay_input_ptr(): number;
   configure_overlays(): number;
+  overlay_input_v2_ptr(): number;
+  configure_overlays_v2(): number;
   overlay_mask(): number;
   overlay_frame_ptr(): number;
   configure_bollinger(period: number, multiplier: number, enabled: number): number;
   bollinger_enabled(): number;
   bollinger_frame_ptr(): number;
+  configure_donchian(period: number, enabled: number): number;
+  donchian_enabled(): number;
+  donchian_frame_ptr(): number;
   set_pane_weights(price: number, volume: number, rsi: number, macd: number): number;
   resize_pane(upper: number, delta: number, height: number): number;
   pane_weights_ptr(): number;
@@ -44,6 +51,9 @@ type CoreExports = WebAssembly.Exports & {
   configure_price_scale(mode: number, inverted: number): number;
   price_to_y(price: number, width: number, height: number): number;
   price_at_y(y: number, width: number, height: number): number;
+  price_line_input_ptr(): number;
+  price_line_output_ptr(): number;
+  project_price_lines(count: number, width: number, height: number, reservedPrice: number): number;
   reset_scale(): void;
   scale_is_auto(): number;
   follow(): void;
@@ -54,6 +64,8 @@ type CoreExports = WebAssembly.Exports & {
   price_ticks_ptr(): number;
   price_tick_count(): number;
   hit(x: number, width: number): number;
+  index_at_time(time: number): number;
+  reveal_bar(index: number): number;
   inspect(index: number): number;
   drawing_capacity(): number;
   drawing_input_ptr(): number;
@@ -141,6 +153,7 @@ export class ChartCore {
       oscillators: new Float64Array(this.core.memory.buffer, this.core.oscillator_frame_ptr(), count * 8).slice(),
       averages: this.core.overlay_mask() ? new Float64Array(this.core.memory.buffer, this.core.overlay_frame_ptr(), count * 12).slice() : undefined,
       bollinger: this.core.bollinger_enabled() ? new Float64Array(this.core.memory.buffer, this.core.bollinger_frame_ptr(), count * 6).slice() : undefined,
+      donchian: this.core.donchian_enabled() ? new Float64Array(this.core.memory.buffer, this.core.donchian_frame_ptr(), count * 6).slice() : undefined,
       paneTicks: new Float64Array(this.core.memory.buffer, this.core.pane_ticks_ptr(), this.core.pane_tick_count() * 3).slice(),
     };
   }
@@ -153,22 +166,30 @@ export class ChartCore {
       throw new Error('Invalid Bollinger Bands configuration');
     }
   }
-  configureAverages(instances: readonly { slot: number; kind: 'ma' | 'ema'; period: number }[]): void {
+  configureDonchian(period: number, enabled: boolean): void {
+    if (!Number.isInteger(period) || period < 1 || period > 500 || typeof enabled !== 'boolean'
+      || this.core.configure_donchian(period, Number(enabled)) !== 0) {
+      throw new Error('Invalid Donchian Channels configuration');
+    }
+  }
+  configureAverages(instances: readonly { slot: number; kind: 'ma' | 'ema'; period: number; source?: IndicatorSource }[]): void {
     const seen = new Set<number>();
     for (const instance of instances) {
       if (!Number.isInteger(instance.slot) || instance.slot < 0 || instance.slot >= 6 || seen.has(instance.slot)
-        || !['ma', 'ema'].includes(instance.kind) || !Number.isInteger(instance.period) || instance.period < 1 || instance.period > 500) {
+        || !['ma', 'ema'].includes(instance.kind) || !Number.isInteger(instance.period) || instance.period < 1 || instance.period > 500
+        || indicatorSourceCode(instance.source === undefined ? 'close' : instance.source) === null) {
         throw new Error('Invalid average instances');
       }
       seen.add(instance.slot);
     }
-    const input = new Float64Array(this.core.memory.buffer, this.core.overlay_input_ptr(), 12);
-    for (let slot = 0; slot < 6; slot++) { input[slot * 2] = 0; input[slot * 2 + 1] = 20; }
+    const input = new Float64Array(this.core.memory.buffer, this.core.overlay_input_v2_ptr(), 18);
+    for (let slot = 0; slot < 6; slot++) { input[slot * 3] = 0; input[slot * 3 + 1] = 20; input[slot * 3 + 2] = 0; }
     for (const instance of instances) {
-      input[instance.slot * 2] = instance.kind === 'ma' ? 1 : 2;
-      input[instance.slot * 2 + 1] = instance.period;
+      input[instance.slot * 3] = instance.kind === 'ma' ? 1 : 2;
+      input[instance.slot * 3 + 1] = instance.period;
+      input[instance.slot * 3 + 2] = indicatorSourceCode(instance.source === undefined ? 'close' : instance.source)!;
     }
-    if (this.core.configure_overlays() !== 0) throw new Error('Invalid average instances');
+    if (this.core.configure_overlays_v2() !== 0) throw new Error('Invalid average instances');
   }
   zoom(factor: number, anchor: number): void { this.core.zoom(factor, anchor); }
   transformView(factor: number, from: number, to: number): void { this.core.transform_view(factor, from, to); }
@@ -179,6 +200,17 @@ export class ChartCore {
   }
   priceToY(price: number, width: number, height: number): number { return this.core.price_to_y(price, width, height); }
   priceAtY(y: number, width: number, height: number): number { return this.core.price_at_y(y, width, height); }
+  projectPriceLines(lines: readonly { price: number; axisLabel: boolean }[], width: number, height: number, reservedPrice?: number): Float64Array {
+    if (reservedPrice !== undefined && (!Number.isSafeInteger(reservedPrice) || Math.abs(reservedPrice) > 1e12)) throw new Error('Invalid reserved price');
+    if (lines.length > 16 || lines.some(line => !Number.isSafeInteger(line.price) || Math.abs(line.price) > 1e12 || typeof line.axisLabel !== 'boolean')) {
+      throw new Error('Invalid price lines');
+    }
+    const input = new Float64Array(this.core.memory.buffer, this.core.price_line_input_ptr(), lines.length * 2);
+    lines.forEach((line, index) => { input[index * 2] = line.price; input[index * 2 + 1] = Number(line.axisLabel); });
+    const count = this.core.project_price_lines(lines.length, width, height, reservedPrice ?? Number.NaN);
+    if (count < 0) throw new Error('Price line projection failed');
+    return new Float64Array(this.core.memory.buffer, this.core.price_line_output_ptr(), count * 3).slice();
+  }
   resetScale(): void { this.core.reset_scale(); }
   get scaleIsAuto(): boolean { return this.core.scale_is_auto() === 1; }
   follow(): void { this.core.follow(); }
@@ -213,13 +245,16 @@ export class ChartCore {
   }
   paneValueToY(id: number, value: number, width: number, height: number): number { return this.core.pane_value_to_y(id, value, width, height); }
   paneValueAtY(id: number, y: number, width: number, height: number): number { return this.core.pane_value_at_y(id, y, width, height); }
-  configureIndicators(maPeriod: number, emaPeriod: number, mask: number): void {
-    if ([maPeriod, emaPeriod, mask].some(value => typeof value !== 'number') ||
-      this.core.configure_indicators(maPeriod, emaPeriod, mask) !== 0) {
+  configureIndicators(maPeriod: number, emaPeriod: number, mask: number, maSource: IndicatorSource = 'close', emaSource: IndicatorSource = 'close'): void {
+    const maCode = indicatorSourceCode(maSource), emaCode = indicatorSourceCode(emaSource);
+    if ([maPeriod, emaPeriod, mask].some(value => typeof value !== 'number') || maCode === null || emaCode === null ||
+      this.core.configure_indicators_v2(maPeriod, emaPeriod, mask, maCode, emaCode) !== 0) {
       throw new Error('Invalid indicator configuration');
     }
   }
   hit(x: number, width: number): number { return this.core.hit(x, width); }
+  indexAtTime(time: number): number { return typeof time === 'number' ? this.core.index_at_time(time) : -1; }
+  revealBar(index: number): number { return typeof index === 'number' ? this.core.reveal_bar(index) : -1; }
 
   inspect(index: number): BarInfo | null {
     if (!Number.isInteger(index) || index < 0 || index >= this.count) return null;

@@ -8,6 +8,7 @@ import type { Locale } from '../ui/i18n';
 import type { IndicatorState } from '../features/analysis/model';
 import { drawStudyOverlays, drawVolumePane, drawOscillatorPanes } from '../features/analysis/render';
 import { drawBollingerFill } from '../features/analysis/bollinger-render';
+import { drawDonchianFill } from '../features/analysis/donchian-render';
 import { formatOscillator } from '../features/analysis/values';
 import { formatVolume } from './format';
 import { drawMainSeries } from './rendering/main-series';
@@ -16,10 +17,11 @@ import { resolveBaseline } from '../features/series/baseline';
 import type { CrosshairStyle } from '../features/crosshair/model';
 import type { ResolvedCrosshair } from '../features/crosshair/resolve';
 import { formatAxisPrice } from './price-axis';
+import { drawPriceLines, type PriceLineScene } from '../features/price-lines/render';
 
 export const AXIS_WIDTH = 86;
 export const TIME_HEIGHT = 30;
-const font = '11px "Segoe UI", Arial, sans-serif';
+const font = '12px "Segoe UI", Arial, sans-serif';
 function createFormats(locale: Locale) {
   const dateLocale = locale === 'en' ? 'en-GB' : locale;
   return {
@@ -46,6 +48,7 @@ export interface RenderOptions {
   paneValueToY(pane: number, value: number): number;
   paneValueAtY(pane: number, y: number): number;
   latest: BarInfo | null;
+  priceLines?: PriceLineScene;
 }
 
 export function drawChart(ctx: CanvasRenderingContext2D, frame: Frame, width: number, height: number, options: RenderOptions): void {
@@ -86,6 +89,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, frame: Frame, width: nu
   if (m[4] > m[3]) {
     ctx.save(); ctx.beginPath(); ctx.rect(0, m[3], plotW, m[4] - m[3]); ctx.clip();
     drawBollingerFill(ctx, frame, options.indicators.bb);
+    drawDonchianFill(ctx, frame, options.indicators.dc);
     drawMainSeries(ctx, frame, appearance, options.seriesStyle, options.pixelRatio,
       resolveBaseline(frame, options.seriesStyle, options.priceToY));
     drawStudyOverlays(ctx, frame, options.indicators);
@@ -93,6 +97,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, frame: Frame, width: nu
   }
   drawVolumePane(ctx, frame, options.indicators.volume, options.pixelRatio);
   drawOscillatorPanes(ctx, frame, options.indicators, options.pixelRatio, options.paneValueToY);
+  if (options.priceLines) drawPriceLines(ctx, frame, options.priceLines, options.instrument.priceScale, AXIS_WIDTH);
   if (appearance.showLastPrice && options.latest) drawLastPrice(ctx, frame, options.latest, options);
 }
 

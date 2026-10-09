@@ -38,6 +38,8 @@ interface Options {
   followLatest(): void;
   clearTooltip(): void;
   syncAxisTitle(): void;
+  inspectKey?(event: KeyboardEvent): boolean;
+  stopInspection?(): void;
   paint(level: ChartInvalidation): void;
 }
 
@@ -80,6 +82,7 @@ export function createChartInput(options: Options) {
     const core = options.getCore(), editor = options.getEditor(), frame = options.getFrame();
     if (!core?.count || event.button !== 0) return;
     const point = position(event), size = options.getSize();
+    if (inPlot(point)) options.stopInspection?.();
     if (event.pointerType === 'touch' && touch.down(event.pointerId, point)) { event.preventDefault(); return; }
     if (touch.active || !event.isPrimary || !inPlot(point)) return;
     if (options.isReplayChoosing()) {
@@ -128,6 +131,7 @@ export function createChartInput(options: Options) {
     const core = options.getCore(), editor = options.getEditor(), frame = options.getFrame();
     if (!core?.count) return;
     const point = position(event);
+    if (inPlot(point)) options.stopInspection?.();
     if (event.pointerType === 'touch' && touch.move(event.pointerId, point)) { event.preventDefault(); return; }
     if (touch.active || !event.isPrimary) return;
     options.syncAxisTitle();
@@ -184,6 +188,7 @@ export function createChartInput(options: Options) {
     if (!core?.count) return;
     const point = position(event);
     if (!inPlot(point)) return;
+    options.stopInspection?.();
     event.preventDefault();
     if (touch.active || editor.dragging || editor.drawing) return;
     clearMeasurement();
@@ -196,6 +201,8 @@ export function createChartInput(options: Options) {
   canvas.addEventListener('keydown', event => {
     const core = options.getCore(), editor = options.getEditor(), frame = options.getFrame();
     if (!core?.count || !frame || touch.active || editor.dragging || editor.drawing) return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (options.inspectKey?.(event)) { event.preventDefault(); event.stopPropagation(); return; }
     switch (event.key) {
       case 'Enter':
         if (options.isReplayChoosing()) {

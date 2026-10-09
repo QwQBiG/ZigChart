@@ -5,6 +5,7 @@ import { getLocale } from '../../ui/i18n.ts';
 export const OSCILLATOR_STRIDE = 8;
 export interface OscillatorValues { rsi: number; macd: number; signal: number; histogram: number }
 export interface BollingerValues { basis: number; upper: number; lower: number }
+export interface DonchianValues { middle: number; upper: number; lower: number }
 const formats = new Map<string, Intl.NumberFormat>();
 
 export function bollingerValuesAt(frame: Frame | null, index: number): BollingerValues | null {
@@ -13,6 +14,14 @@ export function bollingerValuesAt(frame: Frame | null, index: number): Bollinger
   if (!Number.isInteger(row) || row < 0 || frame.rows[row * 17] !== index || offset + 6 > frame.bollinger.length) return null;
   const [basis, upper, lower] = frame.bollinger.subarray(offset, offset + 3);
   return { basis, upper, lower };
+}
+
+export function donchianValuesAt(frame: Frame | null, index: number): DonchianValues | null {
+  if (!frame?.donchian || !frame.rows.length) return null;
+  const row = index - frame.rows[0], offset = row * 6;
+  if (!Number.isInteger(row) || row < 0 || frame.rows[row * 17] !== index || offset + 6 > frame.donchian.length) return null;
+  const [middle, upper, lower] = frame.donchian.subarray(offset, offset + 3);
+  return { middle, upper, lower };
 }
 
 export function averageValuesAt(frame: Frame | null, index: number): number[] {
