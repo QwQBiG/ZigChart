@@ -3,6 +3,7 @@ const drawings = @import("drawings.zig");
 const fibonacci = drawings.fibonacci;
 const layout = @import("layout.zig");
 const measurement = @import("measurement.zig");
+const price_lines = @import("price-lines.zig");
 const std = @import("std");
 
 // Each module instance owns fixed storage; calls never allocate or grow memory.
@@ -21,8 +22,10 @@ var pane_length: usize = 0;
 var pane_order: [4]f64 = undefined;
 var oscillator_rows: [core.max_visible]core.OscillatorFrameRow = undefined;
 var overlay_input: [core.averages.slots]core.averages.Config = undefined;
+var overlay_input_v2: [core.averages.slots]core.averages.ConfigV2 = undefined;
 var overlay_rows: [core.max_visible][core.averages.slots * 2]f64 = undefined;
 var bollinger_rows: [core.max_visible]core.BollingerFrameRow = undefined;
+var donchian_rows: [core.max_visible]core.DonchianFrameRow = undefined;
 var pane_ticks: [layout.maximum_ticks]layout.Tick = undefined;
 var pane_tick_length: usize = 0;
 // Read-only coordinate calls reuse the latest frame's axes. Every write invalidates them.
@@ -39,6 +42,8 @@ var drawing_text_bounds: [drawings.capacity]drawings.TextBounds = @splat(@splat(
 var drawing_point_output: drawings.Point = undefined;
 var drawing_hit_output: drawings.Hit = undefined;
 var measurement_output: measurement.Output = undefined;
+var price_line_input: [price_lines.capacity]price_lines.Input = undefined;
+var price_line_output: [price_lines.capacity]price_lines.Output = undefined;
 
 fn state() *core.Engine {
     // Initializing only metadata at runtime avoids embedding the storage in the binary.
@@ -75,6 +80,14 @@ export fn apply(mode: u32, count: u32) i32 {
 export fn bar_count() u32 {
     return @intCast(state().len);
 }
+export fn index_at_time(time: f64) i32 {
+    return state().indexAtTime(time);
+}
+export fn reveal_bar(index: f64) i32 {
+    const result = state().revealBar(index);
+    if (result == 1) cache_valid = false;
+    return result;
+}
 export fn set_view(start: f64, span: f64) void {
     mutation().setView(start, span);
 }
@@ -90,6 +103,9 @@ export fn set_pane_split(ratio: f64) void {
 export fn configure_indicators(ma_period: f64, ema_period: f64, mask: f64) i32 {
     return @intFromEnum(mutation().configureIndicators(ma_period, ema_period, mask));
 }
+export fn configure_indicators_v2(ma_period: f64, ema_period: f64, mask: f64, ma_source: f64, ema_source: f64) i32 {
+    return @intFromEnum(mutation().configureIndicatorsV2(ma_period, ema_period, mask, ma_source, ema_source));
+}
 export fn configure_oscillators(rsi: f64, fast: f64, slow: f64, signal: f64, mask: f64) i32 {
     return @intFromEnum(mutation().configureOscillators(rsi, fast, slow, signal, mask));
 }
@@ -98,6 +114,12 @@ export fn overlay_input_ptr() usize {
 }
 export fn configure_overlays() i32 {
     return @intFromEnum(mutation().configureOverlays(&overlay_input));
+}
+export fn overlay_input_v2_ptr() usize {
+    return @intFromPtr(&overlay_input_v2);
+}
+export fn configure_overlays_v2() i32 {
+    return @intFromEnum(mutation().configureOverlaysV2(&overlay_input_v2));
 }
 export fn overlay_mask() u32 {
     return state().overlays.mask();
@@ -113,6 +135,15 @@ export fn bollinger_enabled() u32 {
 }
 export fn bollinger_frame_ptr() usize {
     return @intFromPtr(&bollinger_rows);
+}
+export fn configure_donchian(period: u32, enabled: u32) i32 {
+    return @intFromEnum(mutation().configureDonchian(period, enabled));
+}
+export fn donchian_enabled() u32 {
+    return @intFromBool(state().channels.config.enabled);
+}
+export fn donchian_frame_ptr() usize {
+    return @intFromPtr(&donchian_rows);
 }
 export fn set_pane_weights(price: f64, volume: f64, rsi: f64, macd: f64) i32 {
     return @intFromEnum(mutation().setPaneWeights(.{ price, volume, rsi, macd }));
@@ -184,6 +215,29 @@ export fn price_at_y(y: f64, width: f64, height: f64) f64 {
     if (cacheMatches(width, height)) return cached_axis.atY(y);
     return state().priceAtY(y, width, height);
 }
+export fn price_line_input_ptr() usize {
+    return @intFromPtr(&price_line_input);
+}
+export fn price_line_output_ptr() usize {
+    return @intFromPtr(&price_line_output);
+}
+export fn project_price_lines(count: u32, width: f64, height: f64, reserved_price: f64) i32 {
+    if (count > price_lines.capacity or !std.math.isFinite(width) or !std.math.isFinite(height) or width <= 0 or height <= 0) return -1;
+    if (state().len == 0) {
+        for (price_line_input[0..count], price_line_output[0..count]) |reference, *projected| projected.* = .{ reference[0], core.nan, core.nan };
+        return @intCast(count);
+    }
+    var axis: core.price_scale.Axis = undefined;
+    if (cacheMatches(width, height)) {
+        axis = cached_axis;
+    } else {
+        _ = state().frameMetadata(width, height, &meta);
+        axis = engine.priceAxis(&meta);
+    }
+    price_lines.project(axis, price_line_input[0..count], price_line_output[0..count]);
+    if (reserved_price >= axis.minimum and reserved_price <= axis.maximum) price_lines.reserveLabel(price_line_output[0..count], axis.toY(reserved_price));
+    return @intCast(count);
+}
 export fn reset_scale() void {
     mutation().resetScale();
 }
@@ -204,6 +258,7 @@ export fn frame(width: f64, height: f64) u32 {
     pane_tick_length = layout.ticks(&panes, &pane_ticks);
     engine.oscillatorFrame(rows[0..count], &panes, oscillator_rows[0..count]);
     engine.bollingerFrame(rows[0..count], axis, bollinger_rows[0..count]);
+    engine.donchianFrame(rows[0..count], axis, donchian_rows[0..count]);
     if (engine.overlays.mask() != 0) {
         for (rows[0..count], overlay_rows[0..count]) |row, *output| {
             for (engine.overlays.config, 0..) |config, slot| {
