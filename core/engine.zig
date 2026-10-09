@@ -4,6 +4,7 @@ pub const price_scale = @import("price-scale.zig");
 const oscillators = @import("oscillators.zig");
 pub const averages = @import("averages.zig");
 pub const bollinger = @import("bollinger.zig");
+pub const donchian = @import("donchian.zig");
 
 pub const capacity = 100_000;
 pub const period = 20;
@@ -16,6 +17,7 @@ pub const Row = [6]f64;
 pub const FrameRow = [17]f64;
 pub const OscillatorFrameRow = [8]f64;
 pub const BollingerFrameRow = [6]f64;
+pub const DonchianFrameRow = [6]f64;
 pub const Status = enum(i32) { ok = 0, invalid_data = 1, capacity = 2, ordering = 3, bad_mode = 4, missing_bar = 5 };
 
 pub const Engine = struct {
@@ -24,6 +26,7 @@ pub const Engine = struct {
     ema: [capacity]f64 = undefined,
     overlays: averages.Store(capacity) = .{},
     bands: bollinger.Store(capacity) = .{},
+    channels: donchian.Store(capacity) = .{},
     oscillators: oscillators.Store(capacity) = .{},
     len: usize = 0,
     start: f64 = 0,
@@ -36,6 +39,8 @@ pub const Engine = struct {
     maximized_pane: i32 = -1,
     ma_period: usize = period,
     ema_period: usize = period,
+    ma_source: averages.Source = .close,
+    ema_source: averages.Source = .close,
     indicator_mask: u8 = 0,
     price_config: price_scale.Config = .{},
 
@@ -47,13 +52,17 @@ pub const Engine = struct {
         self.locked_macd_range = null;
         self.oscillators.reset();
         self.overlays.config = @splat(.{ 0, 20 });
+        self.overlays.sources = @splat(.close);
         self.bands.config = .{};
+        self.channels.config = .{};
         self.plot_width = 0;
         self.pane_weights = layout.default_weights;
         self.pane_order = layout.default_order;
         self.maximized_pane = -1;
         self.ma_period = period;
         self.ema_period = period;
+        self.ma_source = .close;
+        self.ema_source = .close;
         self.indicator_mask = 0;
         self.price_config = .{};
     }
@@ -122,6 +131,27 @@ pub const Engine = struct {
         return if (low < self.len and self.bars[low][0] == time) low else null;
     }
 
+    pub fn indexAtTime(self: *const Engine, time: f64) i32 {
+        if (!integerInRange(time, 0, 8.64e15)) return -1;
+        return @intCast(self.barIndex(time) orelse return -1);
+    }
+
+    /// Reveal one loaded candle with a small edge margin, preserving shared scale locks.
+    pub fn revealBar(self: *Engine, index: f64) i32 {
+        if (self.len == 0 or !integerInRange(index, 0, @floatFromInt(self.len - 1))) return -1;
+        const center = index + 0.5;
+        const margin = @min(2, self.span * 0.1);
+        const start = if (center < self.start + margin)
+            center - margin
+        else if (center > self.start + self.span - margin)
+            center + margin - self.span
+        else
+            return 0;
+        const previous_start = self.start;
+        self.pan(start - previous_start);
+        return @intFromBool(self.start != previous_start);
+    }
+
     // Correct only loaded timestamps. Validate every target before changing any data.
     fn correct(self: *Engine, input: []const Row) Status {
         var first_changed = self.len;
@@ -139,16 +169,23 @@ pub const Engine = struct {
         self.recomputeIndicators(from, true, true);
         self.overlays.recompute(self.bars[0..self.len], from);
         self.bands.recompute(self.bars[0..self.len], from);
+        self.channels.recompute(self.bars[0..self.len], from);
         self.oscillators.update(self.bars[0..self.len], from);
     }
 
     fn recomputeIndicators(self: *Engine, from: usize, update_ma: bool, update_ema: bool) void {
-        if (update_ma) averages.update(self.bars[0..self.len], &self.ma, from, self.ma_period, false);
-        if (update_ema) averages.update(self.bars[0..self.len], &self.ema, from, self.ema_period, true);
+        if (update_ma) averages.updateSource(self.bars[0..self.len], &self.ma, from, self.ma_period, false, self.ma_source);
+        if (update_ema) averages.updateSource(self.bars[0..self.len], &self.ema, from, self.ema_period, true, self.ema_source);
     }
 
     pub fn configureOverlays(self: *Engine, configs: *const [averages.slots]averages.Config) Status {
         const changed = self.overlays.configure(configs, self.bars[0..self.len]) orelse return .invalid_data;
+        if (changed) self.resetScale();
+        return .ok;
+    }
+
+    pub fn configureOverlaysV2(self: *Engine, configs: *const [averages.slots]averages.ConfigV2) Status {
+        const changed = self.overlays.configureV2(configs, self.bars[0..self.len]) orelse return .invalid_data;
         if (changed) self.resetScale();
         return .ok;
     }
@@ -159,18 +196,33 @@ pub const Engine = struct {
         return .ok;
     }
 
+    pub fn configureDonchian(self: *Engine, channel_period: u32, enabled: u32) Status {
+        const changed = self.channels.configure(channel_period, enabled, self.bars[0..self.len]) orelse return .invalid_data;
+        if (changed) self.resetScale();
+        return .ok;
+    }
+
     pub fn configureIndicators(self: *Engine, ma_period: f64, ema_period: f64, mask: f64) Status {
+        return self.configureIndicatorsV2(ma_period, ema_period, mask, 0, 0);
+    }
+
+    pub fn configureIndicatorsV2(self: *Engine, ma_period: f64, ema_period: f64, mask: f64, ma_source: f64, ema_source: f64) Status {
         if (!integerInRange(ma_period, 1, maximum_indicator_period) or
-            !integerInRange(ema_period, 1, maximum_indicator_period) or !integerInRange(mask, 0, 7)) return .invalid_data;
+            !integerInRange(ema_period, 1, maximum_indicator_period) or !integerInRange(mask, 0, 7) or
+            !integerInRange(ma_source, 0, 7) or !integerInRange(ema_source, 0, 7)) return .invalid_data;
         const ma: usize = @intFromFloat(ma_period);
         const ema: usize = @intFromFloat(ema_period);
+        const next_ma_source: averages.Source = @enumFromInt(@as(u8, @intFromFloat(ma_source)));
+        const next_ema_source: averages.Source = @enumFromInt(@as(u8, @intFromFloat(ema_source)));
         const next_mask: u8 = @intFromFloat(mask);
-        const update_ma = ma != self.ma_period;
-        const update_ema = ema != self.ema_period;
+        const update_ma = ma != self.ma_period or next_ma_source != self.ma_source;
+        const update_ema = ema != self.ema_period or next_ema_source != self.ema_source;
         if (!update_ma and !update_ema and next_mask == self.indicator_mask) return .ok;
         const previous_panes = self.activePanes();
         self.ma_period = ma;
         self.ema_period = ema;
+        self.ma_source = next_ma_source;
+        self.ema_source = next_ema_source;
         self.indicator_mask = next_mask;
         self.reconcileMaximized(previous_panes);
         if (update_ma or update_ema) self.recomputeIndicators(0, update_ma, update_ema);
@@ -386,6 +438,11 @@ pub const Engine = struct {
                     if (std.math.isFinite(value) and value <= 0) return false;
                 }
             }
+            if (self.channels.config.enabled) {
+                for (self.channels.values[i]) |value| {
+                    if (std.math.isFinite(value) and value <= 0) return false;
+                }
+            }
             for (self.overlays.config, 0..) |config, slot| {
                 if (config[0] == 0) continue;
                 const value = self.overlays.values[slot][i];
@@ -470,6 +527,13 @@ pub const Engine = struct {
                     price_max = @max(price_max, value);
                 }
             }
+            if (self.channels.config.enabled) {
+                for (self.channels.values[i]) |value| {
+                    if (!std.math.isFinite(value)) continue;
+                    price_min = @min(price_min, value);
+                    price_max = @max(price_max, value);
+                }
+            }
             for (self.overlays.config, 0..) |config, slot| {
                 if (config[0] == 0) continue;
                 const value = self.overlays.values[slot][i];
@@ -549,6 +613,13 @@ pub const Engine = struct {
     pub fn bollingerFrame(self: *const Engine, rows: []const FrameRow, axis: price_scale.Axis, output: []BollingerFrameRow) void {
         for (rows, output) |row, *result| {
             const values = if (self.bands.config.enabled) self.bands.values[@intFromFloat(row[0])] else @as(bollinger.Values, @splat(nan));
+            result.* = .{ values[0], values[1], values[2], axis.toY(values[0]), axis.toY(values[1]), axis.toY(values[2]) };
+        }
+    }
+
+    pub fn donchianFrame(self: *const Engine, rows: []const FrameRow, axis: price_scale.Axis, output: []DonchianFrameRow) void {
+        for (rows, output) |row, *result| {
+            const values = if (self.channels.config.enabled) self.channels.values[@intFromFloat(row[0])] else @as(donchian.Values, @splat(nan));
             result.* = .{ values[0], values[1], values[2], axis.toY(values[0]), axis.toY(values[1]), axis.toY(values[2]) };
         }
     }

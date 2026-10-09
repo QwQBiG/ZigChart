@@ -48,11 +48,15 @@ import { drawAnnotations } from '../features/drawings/render';
 import { createWorkspaceLayout } from '../ui/workspace-layout';
 import { createPaneActions } from '../ui/pane-actions';
 import { setupSelectControls } from '../ui/select-control';
+import { setupWorkspaceIcons } from '../ui/icons';
+import { PriceLineStore } from '../features/price-lines/model';
+import { createPriceLinePanel } from '../features/price-lines/panel';
+import type { PriceLineScene } from '../features/price-lines/render';
 import { createAnalysisLibrary } from '../features/analysis/panel';
 import { createIndicatorState, parseIndicatorState, setIndicatorEnabled } from '../features/analysis/model';
 import type { IndicatorState } from '../features/analysis/model';
 import { createIndicatorLegends } from '../features/analysis/legend';
-import { averageValuesAt, bollingerValuesAt, oscillatorValuesAt } from '../features/analysis/values';
+import { averageValuesAt, bollingerValuesAt, donchianValuesAt, oscillatorValuesAt } from '../features/analysis/values';
 import { createChartLayers } from '../chart/layers';
 import { createFrameScheduler } from '../chart/scheduler';
 import type { ChartInvalidation } from '../chart/scheduler';
@@ -63,6 +67,11 @@ import { createChartReadout, setText } from '../ui/chart-readout';
 import { syncDrawingFeedback, syncPanelFeedback } from '../ui/control-feedback';
 import { createFullscreenControl } from '../ui/fullscreen';
 import { createSnapshotControls } from '../features/export/controls';
+import { InspectionController } from '../features/inspection/controller';
+import { createInspectionPresentation } from '../features/inspection/presentation';
+import { drawInspection } from '../features/inspection/render';
+import type { InspectionSelection } from '../features/inspection/types';
+import '../features/inspection/presentation.css';
 import { captureChartSnapshot } from '../features/export/scene';
 import '../features/export/controls.css';
 
@@ -78,6 +87,7 @@ function preference(key: string): string | null {
 const savedLocale = preference('zigchart.locale');
 setLocale(chooseLocale(savedLocale, navigator.languages));
 translateDocument(document);
+setupWorkspaceIcons();
 let preferenceStorage: Storage | undefined;
 try { preferenceStorage = window.localStorage; } catch { /* Session-only preferences remain available. */ }
 let instrument = findSampleInstrument(selectedSymbol(preference(SYMBOL_KEY),
@@ -98,6 +108,8 @@ const tooltip = element('chart-tooltip');
 const readout = createChartReadout(element('ohlc'), element('selected-time'), tooltip, () => instrument);
 let core: ChartCore;
 let frame: Frame | null = null;
+let priceLineScene: PriceLineScene | undefined;
+const priceLines = new PriceLineStore(preferenceStorage);
 let width = 1;
 let height = 1;
 let pixelRatio = 1;
@@ -225,7 +237,7 @@ const measure = createMeasureController({ getCore: () => core,
   getSize: () => ({ width: width - AXIS_WIDTH, height: height - TIME_HEIGHT }), onChange: requestOverlayPaint });
 const measureReadout = createMeasureReadout(container, () => instrument);
 const drawingTools = createDrawingTools(element<HTMLSelectElement>('line-tool-select'), tool => {
-  replay.cancelSelection(); clearMeasurement();
+  inspection.stop(); replay.cancelSelection(); clearMeasurement();
   editor.setTool(tool); canvas.focus({ preventScroll: true });
 });
 const seriesControls = createSeriesControls(element<HTMLSelectElement>('series-type-select'), {
@@ -271,7 +283,19 @@ const marketSidebar = createMarketSidebar(element('market-sidebar'), { catalog: 
   getInstrument: () => instrument, canSelect: () => !!core, onSelect: symbol => { void switchInstrument(symbol); },
 });
 element('symbol-open').addEventListener('click', () => marketSidebar.openPicker());
-const library = createAnalysisLibrary({ getState: () => indicators, onChange: changeIndicators });
+function syncAnalysisTrigger(open: boolean): void {
+  const button = element('analysis-open');
+  button.classList.toggle('active', open); button.setAttribute('aria-expanded', String(open));
+}
+const library = createAnalysisLibrary({ getState: () => indicators, onChange: changeIndicators,
+  onOpen: () => { cancelChartGesture(); syncAnalysisTrigger(true); }, onClose: () => syncAnalysisTrigger(false),
+  refreshControls: () => selects.refresh(),
+});
+const priceLinePanel = createPriceLinePanel({ rail: element('crosshair-settings-open').parentElement!, store: priceLines,
+  getInstrument: () => instrument, getLatestPrice: () => core?.inspect(core.count - 1)?.close ?? null,
+  onChange: requestPaint, onOpen: cancelChartGesture,
+  refreshControls: () => selects.refresh(),
+});
 const legends = createIndicatorLegends({ getState: () => indicators,
   onSettings: id => library.openSettings(id),
   onRemove: id => changeIndicators(setIndicatorEnabled(indicators, id, false)),
@@ -312,6 +336,7 @@ const snapshots = createSnapshotControls({ button: snapshotButton, capture: asyn
     drawings: committed, positions, source: marketSourceLabel(), partial: partialLastBar });
 } });
 function cancelChartGesture(preserveTouches = false): void {
+  inspection.stop();
   axisControls.cancel(); timeControls.cancel();
   input.cancel(preserveTouches);
 }
@@ -386,7 +411,7 @@ async function switchInstrument(symbol: string): Promise<void> {
   const entry = findSampleInstrument(symbol);
   if (!entry) return;
   const source = new SampleFeed(symbol);
-  cancelChartGesture(); replay.cancelSelection(); appearancePanel.close();
+  cancelChartGesture(); replay.cancelSelection(); appearancePanel.close(); priceLinePanel.close();
   instrumentWorkspace.saveBaseline(instrument, seriesStyle);
   instrument = entry.instrument;
   seriesStyle = { ...seriesStyle, ...instrumentWorkspace.baseline(instrument) };
@@ -416,9 +441,10 @@ function changeCrosshair(next: CrosshairStyle): void {
 
 function syncCoreIndicators(state: IndicatorState): void {
   const mask = Number(state.ma.enabled) | (Number(state.ema.enabled) << 1) | (Number(state.volume.enabled) << 2);
-  core?.configureIndicators(state.ma.period, state.ema.period, mask);
-  core?.configureAverages(state.averages.map(item => ({ slot: Number(item.id.slice(8)) - 1, kind: item.kind, period: item.period })));
+  core?.configureIndicators(state.ma.period, state.ema.period, mask, state.ma.source, state.ema.source);
+  core?.configureAverages(state.averages.map(item => ({ slot: Number(item.id.slice(8)) - 1, kind: item.kind, period: item.period, source: item.source })));
   core?.configureBollinger(state.bb.period, state.bb.multiplier, state.bb.enabled);
+  core?.configureDonchian(state.dc.period, state.dc.enabled);
   core?.configureOscillators(state.rsi.period, state.macd.fastPeriod, state.macd.slowPeriod,
     state.macd.signalPeriod, Number(state.rsi.enabled) | (Number(state.macd.enabled) << 1));
 }
@@ -523,7 +549,7 @@ function drawingChanged(save: boolean): void {
 
 function updateHostText(): void {
   sessionFeedbackKey = sessionUiKey();
-  snapshots.refresh(); fullscreen.refresh();
+  snapshots.refresh(); fullscreen.refresh(); inspectionView.refresh();
   snapshotButton.disabled = !core?.count || emptyState !== null;
   rangeControls.refresh();
   syncSidebar();
@@ -536,7 +562,7 @@ function updateHostText(): void {
   element<HTMLButtonElement>('symbol-open').disabled = !core;
   refreshPeriods();
   library.refresh(); legends.refresh(); layout.refresh(); paneActions.refresh(); seriesControls.refresh();
-  appearancePanel.refresh(); crosshairPanel.refresh(); marketSidebar.refresh(); setSeriesSelected(seriesSelected);
+  appearancePanel.refresh(); crosshairPanel.refresh(); marketSidebar.refresh(); priceLinePanel.refresh(); setSeriesSelected(seriesSelected);
   axisControls.refresh(); timeControls.refresh();
   syncScaleFeedback(element<HTMLButtonElement>('price-scale-mode'), frame, scalePreferences);
   drawingChanged(false);
@@ -619,17 +645,18 @@ function updateSnapshot(latest: BarInfo | null): void {
     periodLabel: t(`${period.unit}Period`, { n: period.multiplier }) });
 }
 
-function updateSelection(selected: BarInfo | null): void {
-  const pointer = input.pointer;
+function updateSelection(selected: BarInfo | null, inspected: InspectionSelection | null): void {
+  const pointer = inspected ?? input.pointer;
   readout.update(selected, indicators, selected?.index === core.count - 1 && partialLastBar,
     !measure.active && !measure.hasResult && !replay.choosing && !input.dragging && !editor.drawing && !editor.dragging ? pointer : null, width, height,
     selected ? oscillatorValuesAt(frame, selected.index) : null, selected ? averageValuesAt(frame, selected.index) : [],
-    selected ? bollingerValuesAt(frame, selected.index) : null);
+    selected ? bollingerValuesAt(frame, selected.index) : null,
+    selected ? donchianValuesAt(frame, selected.index) : null);
 }
 
 function renderOptions(latest: BarInfo | null): RenderOptions {
   return {
-    indicators, latest, appearance, seriesStyle, pixelRatio, period: session.period, instrument, crosshairStyle,
+    indicators, latest, appearance, seriesStyle, pixelRatio, period: session.period, instrument, crosshairStyle, priceLines: priceLineScene,
     priceToY: (price: number) => core.priceToY(price, width - AXIS_WIDTH, height - TIME_HEIGHT),
     priceAtY: (y: number) => core.priceAtY(y, width - AXIS_WIDTH, height - TIME_HEIGHT),
     paneValueToY: (pane: number, value: number) => core.paneValueToY(pane, value, width - AXIS_WIDTH, height - TIME_HEIGHT),
@@ -653,13 +680,19 @@ function paint(level: ChartInvalidation): void {
     axisControls.refresh(); timeControls.refresh(); syncAxisTitle();
     refreshMeasurement();
     if (!core?.count || width <= AXIS_WIDTH || height <= TIME_HEIGHT) {
+      priceLineScene = undefined;
+      inspectionView.update(null, false);
       surface.clearOverlay(width, height);
       measureReadout.update(null, { active: false, measuring: false }, frame);
       ctx.fillStyle = appearance.backgroundColor; ctx.fillRect(0, 0, width, height); return;
     }
     const full = level === 'full' || !frame;
     if (full) {
+      inspection.ensureVisible();
       frame = core.frame(width - AXIS_WIDTH, height - TIME_HEIGHT);
+      const references = priceLines.items(instrument).filter(line => line.visible);
+      priceLineScene = { lines: references, rows: core.projectPriceLines(references, width - AXIS_WIDTH, height - TIME_HEIGHT,
+        appearance.showLastPrice ? core.inspect(core.count - 1)?.close : undefined) };
       if (touchChanged) maybeLoadHistory();
       layout.updateFrame(frame); legends.updateFrame(frame); paneActions.updateFrame(frame, layout.maximizedPane);
       const pricePane = frame.panes?.find(pane => pane.id === 0);
@@ -669,7 +702,9 @@ function paint(level: ChartInvalidation): void {
       }
       const chartLabel = priceVisible ? 'chartAria' : 'auxiliaryChartAria';
       if (canvas.dataset.i18nAriaLabel !== chartLabel) canvas.dataset.i18nAriaLabel = chartLabel;
-      if (canvas.getAttribute('aria-label') !== t(chartLabel)) canvas.setAttribute('aria-label', t(chartLabel));
+      if (!(inspection.active && document.activeElement === canvas) && canvas.getAttribute('aria-label') !== t(chartLabel)) {
+        canvas.setAttribute('aria-label', t(chartLabel));
+      }
       for (const [name, value] of [['top', pricePane?.top ?? 0], ['height', pricePane ? pricePane.bottom - pricePane.top : 0]] as const) {
         const css = `${value}px`, key = `--price-pane-${name}`;
         if (container.style.getPropertyValue(key) !== css) container.style.setProperty(key, css);
@@ -680,7 +715,8 @@ function paint(level: ChartInvalidation): void {
     const latest = core.inspect(core.count - 1);
     const pointer = input.pointer;
     const index = pointer ? core.hit(pointer.x, width - AXIS_WIDTH) : -1;
-    const selected = pointer ? (index >= 0 ? core.inspect(index) : null) : latest;
+    const inspected = inspection.resolve(frame);
+    const selected = inspected?.bar ?? (pointer ? (index >= 0 ? core.inspect(index) : null) : latest);
     const options = renderOptions(latest);
     if (full) {
       drawChart(ctx, frame, width, height, options);
@@ -688,14 +724,16 @@ function paint(level: ChartInvalidation): void {
       if (objects.length) drawAnnotations(ctx, frame, objects, core.projectDrawings(objects, width - AXIS_WIDTH, height - TIME_HEIGHT), editor.selected, appearance, instrument.priceScale);
     }
     surface.clearOverlay(width, height);
-    const crosshair = resolveCrosshair(frame, replay.choosing || measure.active ? null : pointer, crosshairStyle, seriesStyle, pixelRatio);
+    const crosshair = resolveCrosshair(frame, inspected || replay.choosing || measure.active ? null : pointer, crosshairStyle, seriesStyle, pixelRatio);
     if (crosshair) drawCrosshair(overlay, frame, crosshair, options);
+    if (inspected) drawInspection(overlay, inspected, options);
     if (replay.choosing && pointer) drawReplaySelection(overlay, frame, index);
     if (seriesSelected) drawSeriesSelection(overlay, frame, '#4f8cff', appearance.backgroundColor, seriesStyle, pixelRatio);
     const measured = measure.result();
     if (measured) drawMeasure(overlay, frame, measured);
     measureReadout.update(measured, { active: measure.active, measuring: measure.measuring }, frame);
-    updateSelection(selected);
+    updateSelection(selected, inspected);
+    inspectionView.update(inspected, selected?.index === core.count - 1 && partialLastBar);
     setText(element('chart-status'), t(session.loading ? 'loadingHistory' :
       session.replayState?.active ? 'historicalReplay' :
       session.browsingHistory ? 'historicalSnapshot' :
@@ -732,6 +770,23 @@ function goLatest(): void {
   core.follow(); requestPaint();
 }
 
+const inspection = new InspectionController({ getCore: () => core, getFrame: () => frame,
+  onStart: () => {
+    rangeController.cancel(); replay.cancelSelection(); cancelChartGesture();
+    drawings.selected = null; editor.setTool('pointer'); setSeriesSelected(false);
+  },
+  cancelNavigation: () => rangeController.cancel(), loadHistory: maybeLoadHistory,
+  paint: level => scheduler.request(level),
+});
+function toggleInspection(): void {
+  if (inspection.active) inspection.stop();
+  else {
+    const pointer = input.pointer;
+    const index = pointer && core ? core.hit(pointer.x, width - AXIS_WIDTH) : -1;
+    inspection.start(core?.inspect(index)?.time);
+  }
+  inspectionView.refresh();
+}
 const input = createChartInput({
   canvas, getCore: () => core, getFrame: () => frame, getEditor: () => editor,
   getSize: () => ({ width: width - AXIS_WIDTH, height: height - TIME_HEIGHT, pageHeight: height, pixelRatio }),
@@ -742,7 +797,20 @@ const input = createChartInput({
   selectReplay: time => replay.select(time), startMeasurement,
   cancelRange: () => rangeController.cancel(), loadHistory: maybeLoadHistory, followLatest: goLatest,
   clearTooltip: () => { tooltip.hidden = true; }, syncAxisTitle,
+  stopInspection: () => inspection.stop(),
+  inspectKey: event => {
+    if (event.key.toLowerCase() === 'i') { if (!event.repeat) toggleInspection(); return true; }
+    if (!inspection.active) return false;
+    if (event.key === 'Enter' || event.key === ' ') { inspectionView.announce(); return true; }
+    if (['+', '=', '-', '_'].includes(event.key)) { inspection.stop(); return false; }
+    return inspection.key(event.key);
+  },
   paint: level => scheduler.request(level),
+});
+const inspectionView = createInspectionPresentation({ parent: container.parentElement!, canvas,
+  getInstrument: () => instrument, getIndicators: () => indicators,
+  getPeriodLabel: () => { const period = getPeriod(session.period); return t(`${period.unit}Period`, { n: period.multiplier }); },
+  isReady: () => !!core?.count && session.ready, isActive: () => inspection.active, onToggle: toggleInspection,
 });
 historyButton.addEventListener('click', () => { void loadHistory(); });
 latestButton.addEventListener('click', goLatest);
@@ -762,7 +830,7 @@ element('sidebar-toggle').addEventListener('click', () => { sidebar.hidden = !si
 syncSidebar();
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-tool]')) {
   button.addEventListener('click', () => {
-    replay.cancelSelection(); clearMeasurement(); editor.setTool(button.dataset.tool as DrawingTool); canvas.focus({ preventScroll: true });
+    inspection.stop(); replay.cancelSelection(); clearMeasurement(); editor.setTool(button.dataset.tool as DrawingTool); canvas.focus({ preventScroll: true });
   });
 }
 for (const [id, action] of [['edit-undo', 'undo'], ['edit-redo', 'redo'], ['drawing-delete', 'delete'], ['drawing-settings-delete', 'delete'], ['drawing-lock', 'lock']] as const) {
@@ -805,6 +873,7 @@ if (surface) {
 window.addEventListener('pagehide', (event) => {
   if (event.persisted) return;
   disposed = true;
+  inspection.stop(); inspectionView.dispose();
   input.dispose();
   rangeController.cancel();
   rangeControls.dispose();
@@ -815,7 +884,7 @@ window.addEventListener('pagehide', (event) => {
   layout.dispose(); paneActions.dispose(); selects.dispose(); library.dispose(); legends.dispose();
   appearancePanel.dispose(); drawingPanel.dispose(); fibonacciControls.dispose(); textControls.dispose(); marketSidebar.dispose();
   drawingTools.dispose();
-  snapshots.dispose(); fullscreen.dispose();
+  snapshots.dispose(); fullscreen.dispose(); priceLinePanel.dispose();
   axisControls.dispose(); timeControls.dispose(); seriesControls.dispose(); crosshairPanel.dispose();
   observer.disconnect();
   window.removeEventListener('resize', resize);

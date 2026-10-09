@@ -1,6 +1,7 @@
 import type { Locale } from '../../ui/i18n';
 import type { IndicatorId, IndicatorState } from './model';
-import { isExtraAverage, studyKind, studySettings, type StudyId, type AverageSettings } from './model.ts';
+import { studyKind, studySettings, type StudyId, type AverageSettings, type PeriodLineSettings } from './model.ts';
+import { averageParameters } from './sources.ts';
 
 export type AnalysisCategory = 'indicators' | 'strategies' | 'scripts';
 export type IndicatorGroup = 'trend' | 'volatility' | 'volume' | 'oscillators';
@@ -25,8 +26,8 @@ export const analysisCatalog: readonly AnalysisEntry[] = [
     id: 'ma', category: 'indicators', group: 'trend', placement: 'price', availability: 'toggle',
     title: { en: 'Moving average · MA', 'zh-CN': '移动平均线 · MA' },
     description: {
-      en: 'Mean of closing prices over the selected period. Values begin after a full period.',
-      'zh-CN': '所选周期内收盘价的平均值，满一个周期后开始显示。',
+      en: 'Mean of the selected price source over the chosen period. Values begin after a full period.',
+      'zh-CN': '所选周期内指定价格来源的平均值，满一个周期后开始显示。',
     },
     keywords: 'simple moving average sma trend 简单均线 趋势',
   },
@@ -34,8 +35,8 @@ export const analysisCatalog: readonly AnalysisEntry[] = [
     id: 'ema', category: 'indicators', group: 'trend', placement: 'price', availability: 'toggle',
     title: { en: 'Exponential moving average · EMA', 'zh-CN': '指数移动平均线 · EMA' },
     description: {
-      en: 'Weights recent closes more heavily, seeded with the first full-period mean.',
-      'zh-CN': '对近期收盘价赋予更高权重，以首个完整周期的平均值初始化。',
+      en: 'Weights recent values of the selected price source more heavily, seeded with the first full-period mean.',
+      'zh-CN': '对指定价格来源的近期数值赋予更高权重，以首个完整周期的平均值初始化。',
     },
     keywords: 'exponential moving average trend 指数均线 趋势',
   },
@@ -47,6 +48,15 @@ export const analysisCatalog: readonly AnalysisEntry[] = [
       'zh-CN': '取 N 根 K 线收盘价的简单移动平均值，上下轨为均值 ± 倍数 × 同一 N 根的总体标准差；满 N 根后开始显示。',
     },
     keywords: 'bb boll bollinger volatility bands 波动率 布林 布林带',
+  },
+  {
+    id: 'dc', category: 'indicators', group: 'volatility', placement: 'price', availability: 'toggle',
+    title: { en: 'Donchian Channels · DC', 'zh-CN': '唐奇安通道 · DC' },
+    description: {
+      en: 'Highest high and lowest low of the latest N bars, including the current bar, with a midpoint line. Values begin after N bars.',
+      'zh-CN': '取最近 N 根 K 线（含当前 K 线）的最高价与最低价作为上下轨，以两者中点作为中轨；满 N 根后开始显示。',
+    },
+    keywords: 'dc donchian channels price high low breakout 唐奇安 通道 突破 最高价 最低价',
   },
   {
     id: 'volume', category: 'indicators', group: 'volume', placement: 'pane', availability: 'toggle',
@@ -82,8 +92,10 @@ export function indicatorTitle(id: StudyId, state: IndicatorState, locale: Local
   const title = analysisCatalog.find(entry => entry.id === kind)!.title[locale];
   if (kind === 'volume') return title;
   if (kind === 'bb') return `${title} ${state.bb.period} ${state.bb.multiplier}`;
+  if (kind === 'dc') return `${title} ${state.dc.period}`;
   if (kind === 'macd') return `${title} ${state.macd.fastPeriod} ${state.macd.slowPeriod} ${state.macd.signalPeriod}`;
-  return `${title} ${(studySettings(state, id) as AverageSettings).period}${isExtraAverage(id) ? ` · #${id.slice(8)}` : ''}`;
+  if (kind === 'ma' || kind === 'ema') return `${title} ${averageParameters(studySettings(state, id) as AverageSettings, locale, id)}`;
+  return `${title} ${(studySettings(state, id) as PeriodLineSettings).period}`;
 }
 
 export function searchAnalysis(query: string): readonly AnalysisEntry[] {

@@ -9,10 +9,13 @@ test {
     _ = @import("fibonacci-tests.zig");
     _ = @import("scale-tests.zig");
     _ = @import("price-scale-tests.zig");
+    _ = @import("price-lines-tests.zig");
     _ = @import("oscillator-tests.zig");
     _ = @import("average-tests.zig");
     _ = @import("bollinger-tests.zig");
+    _ = @import("donchian-tests.zig");
     _ = @import("measurement-tests.zig");
+    _ = @import("navigation-tests.zig");
 }
 
 // Large fixtures are static, keeping tests independent of host thread stack size.

@@ -6,7 +6,7 @@ import { analysisCatalog, indicatorTitle, searchAnalysis } from '../web/src/feat
 test('new indicator documents start empty and do not share mutable settings', () => {
   const first = createIndicatorState();
   const second = createIndicatorState();
-  assert.equal(first.version, 4);
+  assert.equal(first.version, 6);
   assert.ok(INDICATOR_IDS.every(id => !first[id].enabled));
   first.ma.period = 7;
   first.ema.color = '#123456';
@@ -21,11 +21,14 @@ test('new indicator documents start empty and do not share mutable settings', ()
   first.bb.multiplier = 3; first.bb.fillColor = '#123456';
   assert.equal(second.bb.multiplier, 2);
   assert.equal(second.bb.fillColor, '#4f8cff');
+  first.dc.period = 35; first.dc.fillColor = '#123456';
+  assert.equal(second.dc.period, 20);
+  assert.equal(second.dc.fillColor, '#4f8cff');
 });
 
 test('each indicator can be added and removed without changing others or losing its settings', () => {
   const original = createIndicatorState();
-  original.ma = { enabled: false, period: 7, color: '#123456', width: 4 };
+  original.ma = { ...original.ma, enabled: false, period: 7, color: '#123456', width: 4 };
   original.volume = { enabled: false, upColor: '#abcdef', downColor: '#fedcba', opacity: .3 };
   original.bb = { ...original.bb, period: 45, multiplier: 3.2, fillOpacity: .25, showFill: false, width: 3 };
   for (const id of INDICATOR_IDS) {
@@ -41,13 +44,14 @@ test('each indicator can be added and removed without changing others or losing 
     assert.notEqual(added.rsi, original.rsi);
     assert.notEqual(added.macd, original.macd);
     assert.notEqual(added.bb, original.bb);
+    assert.notEqual(added.dc, original.dc);
   }
 });
 
 test('saved indicator preferences round trip as a validated independent document', () => {
   const input = createIndicatorState();
-  input.ma = { enabled: true, period: 1, color: '#ABCDEF', width: 1 };
-  input.ema = { enabled: true, period: 500, color: '#123456', width: 4 };
+  input.ma = { ...input.ma, enabled: true, period: 1, color: '#ABCDEF', width: 1 };
+  input.ema = { ...input.ema, enabled: true, period: 500, color: '#123456', width: 4 };
   input.volume = { enabled: true, upColor: '#FEDCBA', downColor: '#654321', opacity: 1 };
   const restored = parseIndicatorState(JSON.parse(JSON.stringify(input)));
   assert.deepEqual(restored, { ...input, ma: { ...input.ma, color: '#abcdef' }, volume: { ...input.volume, upColor: '#fedcba' } });
@@ -57,7 +61,7 @@ test('saved indicator preferences round trip as a validated independent document
 });
 
 test('malformed documents and any invalid indicator reject the entire preference state', () => {
-  for (const value of [null, [], {}, 'text', 1, { ...createIndicatorState(), version: 5 }]) assert.equal(parseIndicatorState(value), null);
+  for (const value of [null, [], {}, 'text', 1, { ...createIndicatorState(), version: 7 }]) assert.equal(parseIndicatorState(value), null);
   const invalidFields = [
     ['ma', 'period', 0], ['ma', 'period', 501], ['ema', 'period', 1.5], ['ema', 'period', '20'],
     ['ma', 'width', 0], ['ema', 'width', 5], ['ema', 'width', NaN], ['ma', 'width', 2.5],
@@ -95,7 +99,7 @@ test('version two and three migration preserve existing studies while starting b
       rsi: { ...defaults.rsi, enabled: true, lower: 25 }, bb: { enabled: true, multiplier: 5 },
       averages: version === 3 ? [{ ...defaults.ema, enabled: true, id: 'average-3', kind: 'ema', period: 42 }] : undefined };
     const migrated = parseIndicatorState(legacy);
-    assert.equal(migrated.version, 4);
+    assert.equal(migrated.version, 6);
     assert.deepEqual(migrated.ma, legacy.ma);
     assert.deepEqual(migrated.rsi, legacy.rsi);
     assert.deepEqual(migrated.averages, legacy.averages ?? []);

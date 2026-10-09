@@ -32,6 +32,8 @@ export interface Frame {
   averages?: Float64Array;
   /** Row-aligned [basis, upper, lower, basisY, upperY, lowerY]; unavailable values are NaN. */
   bollinger?: Float64Array;
+  /** Row-aligned [middle, upper, lower, middleY, upperY, lowerY]; unavailable values are NaN. */
+  donchian?: Float64Array;
   /** Auxiliary tick triples [paneId, rawValue, cssY]. */
   paneTicks?: Float64Array;
 }

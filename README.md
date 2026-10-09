@@ -4,12 +4,12 @@
 
 A Web chart MVP built around a portable Zig core: **Zig → WebAssembly → TypeScript → Canvas 2D**.
 
-The core owns validated OHLCV data, MA/EMA/RSI/MACD/Bollinger Bands calculations, viewport state, hit testing, and chart geometry. The browser owns data access, input, scheduling, labels, and Canvas 2D drawing, including hardware acceleration.
+The core owns validated OHLCV data, MA/EMA/RSI/MACD/Bollinger Bands/Donchian Channels calculations, viewport state, hit testing, and chart geometry. The browser owns data access, input, scheduling, labels, and Canvas 2D drawing, including hardware acceleration.
 
 ## Current scope
 
 - Candlestick, hollow-candlestick, OHLC-bar, line, area, and baseline main series with optional aligned Volume, RSI, and MACD panes; new preferences start with candles and no indicators.
-- Independently added MA, EMA, Volume, RSI, MACD, and Bollinger Bands, plus up to six additional MA/EMA instances, with separate settings and documented initialization.
+- Independently added MA, EMA, Volume, RSI, MACD, Bollinger Bands, and Donchian Channels, plus up to six additional MA/EMA instances, with separate settings and documented initialization; each MA/EMA selects its own price source.
 - Pointer-centered zoom, drag/keyboard pan, crosshair inspection, and follow-latest behavior.
 - Regular, logarithmic, percentage, and indexed-to-100 price scales, optional inversion, readable tick intervals, and independent manual scaling with an automatic-fit control.
 - Time-axis dragging and wheel zoom, plus four crosshair modes with separate appearance preferences.
@@ -21,6 +21,7 @@ The core owns validated OHLCV data, MA/EMA/RSI/MACD/Bollinger Bands calculations
 - Analysis library grouped by Trend, Volume, Oscillators, and Volatility.
 - Selectable 1/2/3/5/10/15/30-minute, 1/2/4/6/12-hour, daily, weekly, and calendar-month bars from the same synthetic series.
 - Horizontal/vertical lines, horizontal rays, trend segments, rays, extended lines, rectangles, Fibonacci retracements and text annotations with selection, dragging, style editing, locking, deletion, undo/redo, and local restoration per period.
+- Independent custom price lines with exact decimal inputs, per-instrument storage across periods, and committed references in PNG exports.
 
 The application uses reproducible synthetic market data. Connect a market provider through the [data interface](docs/data-contract.md).
 
@@ -44,6 +45,19 @@ On macOS, native tests require an installed compatible Xcode SDK. With the pinne
 
 To inspect the production build, run `npm run preview` after `npm run build`. The build output is in `dist/`. CI builds and tests on Windows, Linux, and macOS, recording the runner platform and architecture.
 
+### Demo on macOS
+
+Check out the branch or commit you intend to demonstrate on your Mac, then run the following from the repository root with the pinned Node/npm versions. The compiler installer supports Apple Silicon and Intel Macs.
+
+```text
+npm ci
+npm run setup:zig
+npm run build
+npm run preview
+```
+
+Keep the preview process running and open the local address it prints. The demo uses synthetic data and needs no market-data service. Install dependencies and the compiler on the Mac itself; `node_modules/`, `.tools/` and `.zig-cache/` are machine-specific. The freestanding Wasm build does not link the macOS SDK; use the compatible SDK described above when running native tests separately. Browser preferences and drawings are local to each browser and are not synchronized through Git.
+
 ## Explore the chart
 
 The bottom-left range buttons offer **1D, 5D, 1M, 3M, 6M, YTD, 1Y, 5Y and All**. They choose a supported candle resolution that fits readable spacing and display that resolution in the top toolbar. Presets end at the latest known market snapshot, not the computer clock. Months/years use UTC calendar arithmetic; All loads the provider's available monthly history.
@@ -63,6 +77,8 @@ Choose candles, hollow candles, OHLC bars, line, area, or baseline from the seri
 Use the header's **English / 简体中文** selector to change the interface immediately. On first use, the browser's preferred supported language is selected, with English as the fallback. An explicit selection is remembered locally when browser storage is available; switching still works when storage is unavailable. Changing language preserves loaded candles, the viewport, locked vertical scales, replay progress, and indicator visibility. Numbers and dates follow the selected language; chart times remain UTC.
 
 Drag or press Left/Right to pan. Scroll over the chart to zoom at the pointer; `+` and `-` zoom with the keyboard. `End` or **Latest** returns to the newest bars in the current source snapshot. Move over any pane to inspect the same candle. **Older history** requests another page; approaching the left edge also requests history.
+
+For keyboard candle inspection, focus the chart and press `I`, or use the bottom bar's **Inspect** button. While active, Left/Right moves one loaded candle, PageUp/PageDown moves −10/+10, Home/End selects the first/last loaded candle, and Up/Down changes visible panes in their current order. Enter/Space rereads the localized OHLC and study values; `Esc` or `I` exits, and `+`/`-` exits and zooms. Other descriptions of chart pan, End and Enter shortcuts apply outside this mode. Inspection keeps one UTC candle anchor across history updates and marks unready studies as warming up. Pointer chart operations, period/instrument changes and drawing entry exit inspection. Its temporary selection is excluded from saved state, undo and PNG. Native screen-reader use with NVDA or VoiceOver, including macOS, has not been verified.
 
 Open **Replay → Choose start** and click a candle in any visible pane. Historical replay includes that candle through its period end, capped at the available sample cutoff, and starts paused. Play, pause, **Next bar**, reselect and speeds **0.25× / 0.5× / 1× / 2× / 5× / 10×** share one cutoff across all panes and period changes. A step completes the current period or adds the next; 1× waits one second between steps, with processing time additional. Future data is excluded from unfinished larger-period candles. This is synthetic replay, not reconstructed historical ticks.
 
@@ -94,13 +110,19 @@ Each pane's upper-right controls move it up/down or maximize it. Price can move 
 
 Series selection, the drawing settings button, and the watchlist button show their current state. Replay controls distinguish starting, pausing, and resuming; unavailable actions are disabled.
 
-Open the header's **Indicators & scripts** entry to search the analysis library in English or Chinese. Trend, Volume, Oscillators, and Volatility groups contain MA, EMA, Volume, RSI, MACD, and Bollinger Bands. New preferences start with no indicators. Once MA or EMA is added, **Add another** creates an independent instance with its own period, color, width, legend and readout; at most six additional averages can coexist with the original MA and EMA. Each added instance has a numbered identity and its own settings/removal actions. Removing it deletes only that instance. Removing a built-in indicator preserves its settings and releases its legend/pane. Version 1/2/3 `zigchart.indicators` documents migrate to version 4, preserving existing settings and extra averages while adding disabled Bollinger Bands defaults; version 1/2 have no extra averages, and version 1 also receives disabled RSI/MACD defaults.
+Open the header's **Indicators & scripts** entry to search the analysis library in English or Chinese. Trend, Volume, Oscillators, and Volatility groups contain MA, EMA, Volume, RSI, MACD, Bollinger Bands, and Donchian Channels. New preferences start with no indicators. Once MA or EMA is added, **Add another** copies its settings into an independent instance with its own period, source, color, width, legend and readout; at most six additional averages can coexist with the original MA and EMA. Each added instance has a numbered identity and its own settings/removal actions. Removing it deletes only that instance. Removing a built-in indicator preserves its settings and releases its legend/pane. Valid version 1–5 `zigchart.indicators` documents migrate to version 6, preserving settings and extra averages with close as their source. Versions 1–4 receive disabled Donchian defaults, versions 1–3 receive disabled BB defaults, versions 1/2 have no extra averages, and version 1 also receives disabled RSI/MACD defaults.
 
 Use an indicator's **Settings** action in the library or its chart legend to edit only that indicator. MA, EMA, and RSI each have their own period (1–500), color, and width (1–4 CSS pixels); Volume has independent rising/falling colors and opacity (10–100%). RSI reference levels obey `0 ≤ lower < upper ≤ 100` and affect display only. MACD has independent fast/slow/signal periods (1–500, fast < slow), line/signal/positive/negative colors, and line width. **Apply settings** commits the changes. Period or add/remove changes refit vertical scales without moving the horizontal viewport; style-only changes preserve scales. **Strategies** and **Scripts** remain explicit unavailable entry points without code execution or backtesting.
+
+Each built-in and additional MA/EMA can select **Close, Open, High, Low, HL2, HLC3, OHLC4 or HLCC4**. Settings, legends and PNG labels show its source, including Close. Zig retains fractional units for combined prices, uses a full-period mean for initialization, and applies the same source to live updates and historical corrections. Source changes refit vertical ranges while preserving time, pane membership and maximization; they do not change RSI/MACD/BB's close input or Donchian's high/low input. See the [source formulas](docs/architecture.md#data-and-indicator-state).
 
 RSI defaults to 14 close-to-close changes: the first complete set seeds mean gains/losses, followed by Wilder smoothing. An entirely flat seed produces 50. MACD defaults to 12/26/9: its fast, slow, and signal EMAs each start from a full-period SMA of available inputs; the histogram is `MACD - signal`, without doubling. Warm-up values remain `NaN`. RSI uses a fixed 0–100 pane scale; MACD's range includes zero.
 
 **Bollinger Bands (BB)** overlays the price pane: a close-based SMA plus/minus a multiple of the population standard deviation (divisor `N`). Defaults are 20 bars and multiplier 2; period is 1–500 and multiplier is 0.1–10. The first `N - 1` values remain unavailable. Basis, upper, lower and fill colors are independent, with line width 1–4 CSS pixels, optional fill and 0–100% fill opacity. Hover readouts show all three values. Adding BB preserves pane maximization and the existing pane layout.
+
+**Donchian Channels** uses the highest high and lowest low of the current and previous `N - 1` bars, with their midpoint as the middle line. The default period is 20, with a range of 1–500; values remain unavailable before a full window exists. Middle, upper, lower and fill colors are independent, with width 1–4 CSS pixels, optional fill and 0–100% fill opacity. It shares the price axis without adding a pane or changing maximization.
+
+Open **Price lines** to add up to 16 price references with a title, independent visibility, color, line width/style and axis-label switch. Exact decimal inputs must match the instrument's precision. Draft changes take effect only on explicit save. Lines are retained per instrument/scale across periods, remain outside drawing undo, and do not expand automatic ranges. Committed lines appear in PNG; nearby custom axis labels yield to the last-price label while their lines remain visible.
 
 Open **Lines** on the left: horizontal lines, horizontal rays, and vertical lines need one point; trend segments, rays, and extended lines need two. Rectangles have a separate tool. A ray continues from its first point through its second, in either time direction; an extended line continues both ways. A horizontal ray extends rightward, and a vertical line spans the price pane. Place anchors on existing price candles. Use the pointer tool to select an object, drag its body or endpoints, edit its color and width, lock it, or delete it. One completed edit is one undo step; `Esc` cancels an unfinished drawing or drag. Drawings keep UTC time and integer-price anchors, so they remain aligned after pan, zoom, resize, and historical loading. Each period has its own document, limited to 256 objects and 100 undo steps. Valid local documents restore after reload; undo history and selection do not. Extensions can be selected in future blank space, but creating anchors or starting a drag there is not supported.
 
@@ -132,6 +154,8 @@ The touch controller accepts two contacts inside the plot to pinch-zoom the shar
 | `web/src/data/` | Canonical market contracts, instrument catalog, sample provider, period rules and request/subscription lifecycle |
 | `web/src/features/instruments/` | Selected symbol and per-instrument drawing/baseline persistence |
 | `web/src/features/analysis/` | Independent indicator settings and the analysis library |
+| `web/src/features/inspection/` | UTC-anchored keyboard inspection, copied-frame markers and localized announcements |
+| `web/src/features/price-lines/` | Per-instrument price references, independent editing and projected rendering |
 | `web/src/features/appearance/` | Validated appearance model and draft settings dialog |
 | `web/src/features/drawings/` | Drawing document, editor, rendering, and object/style dialog |
 | `web/src/features/measure/` | Temporary ruler interaction and result presentation using core measurement output |

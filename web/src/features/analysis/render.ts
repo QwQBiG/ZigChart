@@ -3,11 +3,13 @@ import type { IndicatorState } from './model';
 import { mainSeriesBarWidth, mainSeriesX } from '../../chart/rendering/main-series.ts';
 import { OSCILLATOR_STRIDE } from './values.ts';
 import { drawBollingerLines } from './bollinger-render.ts';
+import { drawDonchianLines } from './donchian-render.ts';
 
 const STRIDE = 17;
 
 export function drawStudyOverlays(ctx: CanvasRenderingContext2D, frame: Frame, studies: IndicatorState): void {
   drawBollingerLines(ctx, frame, studies.bb);
+  drawDonchianLines(ctx, frame, studies.dc);
   for (const [id, column] of [['ma', 15], ['ema', 16]] as const) {
     const style = studies[id];
     if (!style.enabled) continue;

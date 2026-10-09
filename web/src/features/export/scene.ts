@@ -6,7 +6,8 @@ import { getPeriod } from '../../data/periods';
 import { getLocale, t } from '../../ui/i18n';
 import { resolvePalette } from '../appearance/model';
 import { indicatorTitle } from '../analysis/catalog';
-import type { StudyId } from '../analysis/model';
+import { studyKind, studySettings, type AverageSettings, type StudyId } from '../analysis/model';
+import { averageLabel } from '../analysis/sources';
 import { drawAnnotations } from '../drawings/render';
 import type { Drawing } from '../drawings/document';
 import { createSnapshotImage, snapshotFilename, type SnapshotLabel } from './image';
@@ -28,13 +29,18 @@ export function captureChartSnapshot(scene: SnapshotScene) {
   const palette = resolvePalette(options.appearance), state = options.indicators;
   const locale = getLocale(), period = getPeriod(options.period);
   const periodLabel = t(`${period.unit}Period`, { n: period.multiplier });
-  const overlays: StudyId[] = (['ma', 'ema', 'bb'] as const).filter(id => state[id].enabled);
+  const overlays: StudyId[] = (['ma', 'ema', 'bb', 'dc'] as const).filter(id => state[id].enabled);
   overlays.push(...state.averages.map(item => item.id));
   const labels: SnapshotLabel[] = [];
+  const studyLabel = (id: StudyId) => {
+    const kind = studyKind(state, id);
+    return kind === 'ma' || kind === 'ema' ? averageLabel(kind, studySettings(state, id) as AverageSettings, locale, id)
+      : indicatorTitle(id, state, locale);
+  };
   for (const pane of frame.panes ?? []) {
     const ids: StudyId[] = pane.id === 0 ? overlays : [(['ma', 'volume', 'rsi', 'macd'] as const)[pane.id]];
     if (!ids.length) continue;
-    labels.push({ text: ids.map(id => indicatorTitle(id, state, locale)).join(' · '),
+    labels.push({ text: ids.map(studyLabel).join(' · '),
       top: pane.top, bottom: pane.bottom, width: frame.meta[11], color: palette.text });
   }
   const last = options.latest;

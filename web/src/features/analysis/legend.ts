@@ -1,6 +1,7 @@
 import { getLocale } from '../../ui/i18n';
 import { INDICATOR_IDS, EXTRA_AVERAGE_IDS, isExtraAverage, type StudyId, type IndicatorState } from './model';
 import type { Frame } from '../../chart/types';
+import { averageLabel } from './sources';
 import './legend.css';
 
 interface LegendOptions {
@@ -37,7 +38,7 @@ export function createIndicatorLegends(options: LegendOptions) {
     settings.addEventListener('click', () => options.onSettings(id), { signal: events.signal });
     remove.addEventListener('click', () => options.onRemove(id), { signal: events.signal });
     row.append(name, settings, remove);
-    (id === 'ma' || id === 'ema' || id === 'bb' || isExtraAverage(id) ? price : paneHosts.get(paneIds[id])!).append(row);
+    (id === 'ma' || id === 'ema' || id === 'bb' || id === 'dc' || isExtraAverage(id) ? price : paneHosts.get(paneIds[id])!).append(row);
     return { id, row, name, settings, remove };
   });
   function positionPanes() {
@@ -63,7 +64,7 @@ export function createIndicatorLegends(options: LegendOptions) {
         const study = state.averages.find(item => item.id === id);
         row.hidden = !study;
         if (!study) continue;
-        const title = `${study.kind.toUpperCase()} ${study.period} · #${id.slice(8)}`;
+        const title = averageLabel(study.kind, study, getLocale(), id);
         name.textContent = title;
         row.style.setProperty('--study-color', study.color);
         settings.title = `${title} · ${chinese ? '设置' : 'Settings'}`;
@@ -73,17 +74,18 @@ export function createIndicatorLegends(options: LegendOptions) {
       }
       const title = id === 'volume' ? (chinese ? '成交量' : 'Volume') : id === 'macd'
         ? `MACD ${state.macd.fastPeriod} ${state.macd.slowPeriod} ${state.macd.signalPeriod}` : id === 'bb'
-          ? `BB ${state.bb.period} ${state.bb.multiplier}` : `${id.toUpperCase()} ${state[id].period}`;
+          ? `BB ${state.bb.period} ${state.bb.multiplier}` : id === 'ma' || id === 'ema'
+            ? averageLabel(id, state[id], getLocale()) : `${id.toUpperCase()} ${state[id].period}`;
       row.hidden = !state[id].enabled;
       name.textContent = title;
       row.style.setProperty('--study-color', id === 'volume' ? state.volume.upColor : id === 'macd' ? state.macd.lineColor
-        : id === 'bb' ? state.bb.basisColor : state[id].color);
+        : id === 'bb' ? state.bb.basisColor : id === 'dc' ? state.dc.middleColor : state[id].color);
       settings.title = `${title} · ${chinese ? '设置' : 'Settings'}`;
       remove.title = `${chinese ? '删除' : 'Remove'} ${title}`;
       settings.setAttribute('aria-label', settings.title);
       remove.setAttribute('aria-label', remove.title);
     }
-    price.hidden = !state.ma.enabled && !state.ema.enabled && !state.bb.enabled && !state.averages.length;
+    price.hidden = !state.ma.enabled && !state.ema.enabled && !state.bb.enabled && !state.dc.enabled && !state.averages.length;
     positionPanes();
   }
   refresh();

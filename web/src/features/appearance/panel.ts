@@ -87,7 +87,12 @@ export function createAppearancePanel(options: AppearancePanelOptions) {
   const body = element('div', 'appearance-body');
   const navigation = element('div', 'appearance-navigation');
   navigation.setAttribute('role', 'tablist');
-  navigation.setAttribute('aria-orientation', 'vertical');
+  const compactNavigation = window.matchMedia('(max-width: 600px)');
+  const updateNavigationOrientation = () => {
+    navigation.setAttribute('aria-orientation', compactNavigation.matches ? 'horizontal' : 'vertical');
+  };
+  updateNavigationOrientation();
+  compactNavigation.addEventListener('change', updateNavigationOrientation);
   const content = element('div', 'appearance-content');
   for (const id of categories) {
     const tab = button('appearance-category', id);
@@ -260,9 +265,9 @@ export function createAppearancePanel(options: AppearancePanelOptions) {
     renderValues();
   }
   navigation.addEventListener('keydown', event => {
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
-    const step = event.key === 'ArrowUp' ? -1 : 1;
+    const step = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
     category = event.key === 'Home' ? 'symbol' : event.key === 'End' ? 'canvas'
       : categories[(categories.indexOf(category) + step + categories.length) % categories.length];
     render(); tabs.get(category)?.focus();
@@ -303,6 +308,10 @@ export function createAppearancePanel(options: AppearancePanelOptions) {
       }
       render();
     },
-    dispose() { disposed = true; dialog.close(); dialog.remove(); },
+    dispose() {
+      disposed = true;
+      compactNavigation.removeEventListener('change', updateNavigationOrientation);
+      dialog.close(); dialog.remove();
+    },
   };
 }

@@ -3,7 +3,7 @@
 .market-section-title{margin:0;font-size:14px;font-weight:600}
 .market-icon-button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;border-radius:4px;background:transparent;color:var(--muted);font-size:24px;cursor:pointer;flex-shrink:0;transition:none}
 .market-icon-button:hover,.market-icon-button:focus-visible{background:var(--raised);color:var(--text)}
-.watchlist-section{min-height:235px;padding-bottom:12px;border-bottom:3px solid var(--line)}
+.watchlist-section{padding-bottom:12px;border-bottom:1px solid var(--line)}
 .watchlist-table-scroll{overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
 .watchlist-table{border-collapse:collapse;table-layout:auto;width:100%;white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums}
 .watchlist-table th{font-weight:400;color:var(--muted);height:32px;border-bottom:1px solid var(--line)}
@@ -28,7 +28,7 @@
 .market-content [data-direction="up"]{color:var(--up)}
 .market-content [data-direction="down"]{color:var(--down)}
 .market-content [data-direction="flat"]{color:var(--muted)}
-.market-quote-heading{font-size:13px;font-weight:600;margin:22px 0 12px;padding-bottom:10px;border-bottom:2px solid var(--line);color:var(--accent)}
+.market-quote-heading{font-size:13px;font-weight:600;margin:22px 0 12px;padding-bottom:10px;border-bottom:1px solid var(--line);color:var(--text)}
 .market-quote-stats{display:grid;grid-template-columns:1fr;gap:12px 24px;margin:0 0 18px}
 .market-quote-stats>div{display:flex;justify-content:space-between;gap:12px;min-width:0}
 .market-quote-stats dt{color:var(--muted)}
@@ -36,3 +36,4 @@
 .market-timestamp{border-top:1px solid var(--line);padding-top:12px}
 @container (max-width:340px){.watchlist-table .watchlist-change{display:none}.market-quote{padding:14px 12px}.market-section-header{padding:12px}.watchlist-table th:first-child,.watchlist-table td:first-child{padding-left:12px}.market-quote-price{font-size:27px}.market-symbol-avatar{display:none}}
 @container (min-width:500px){.market-quote-stats{grid-template-columns:1fr 1fr}.market-quote{padding:20px}.watchlist-section{min-height:270px}}
+@container (min-width:360px){.market-quote-stats{grid-template-columns:1fr 1fr;gap:12px 20px}}
